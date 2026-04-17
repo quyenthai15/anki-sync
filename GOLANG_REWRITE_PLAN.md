@@ -15,7 +15,7 @@ Each session has: what to learn → what to build → resources.
 
 ## Phase 1 — Go Fundamentals (no project code yet)
 
-### Session 1 — The Go toolchain & your first program ✅
+### ✅ Session 1 — The Go toolchain & your first program 
 
 **Learn**
 - How Go modules work (`go mod init`, `go.mod`, `go.sum`)
@@ -36,7 +36,7 @@ Write `main.go` that prints `"AnkiSync v0.1"` and the current date using `time.N
 
 ---
 
-### Session 2 — Structs, methods, and interfaces
+### ✅ Session 2 — Structs, methods, and interfaces
 
 **Learn**
 - Structs and field access
