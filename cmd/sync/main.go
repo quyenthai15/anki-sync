@@ -3,10 +3,28 @@ package main
 import (
 	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
+	"anki-sync-go/internal/sheet"
 	"flag"
 	"fmt"
 	"log"
 )
+
+
+type AnkiClient interface {
+	AddNotes(notes []anki.Note) error
+	// TODO: these are for validation, not sure if needed
+	// GetModels() ([]string, error)
+	// GetDeckNames() ([]string, error)
+	// GetModelFields(modelName string) ([]string, error) -> this is to initial setup, not sure if still needed
+	GetNotes(deckName string) ([]int, error)
+	GetNoteInfo(noteId int) (map[string]any, error)
+	MultiUpdate(actions []anki.Action) ([]any, error)
+}
+
+
+type SheetFetcher interface {
+	GetRecords(url string) ([]sheet.Record, error)
+}
 
 func main() {
 	force := flag.Bool("force", false, "Force sync")
@@ -26,7 +44,5 @@ func main() {
 	} else {
 		fmt.Println("Validation passed")
 	}
-
-	anki.AnkiAction("action", nil)
 }
 
