@@ -15,12 +15,12 @@ type AnkiReader interface {
 	GetDeckNames() ([]string, error)
 	GetModelFields(modelName string) ([]string, error) // TODO: this is to initial setup, not sure if still needed
 	GetNotes(deckName string) ([]int, error)
-	GetNoteInfo(noteId int) (map[string]any, error)
+	GetNotesInfo(noteIds []int) ([]anki.NoteInfo, error)
 }
 
 type AnkiWriter interface {
 	AddNotes(notes []anki.Note) error
-	MultiUpdate(actions []anki.Request[map[string]any]) ([]any, error)
+	MultiUpdate(actions []anki.Request) ([]any, error)
 }
 
 type SheetFetcher interface {
@@ -50,15 +50,15 @@ func main() {
 	cfg.ForceSync = *force
 	cfg.DryRun = *dryRun
 
-	if err := config.Check(cfg); err != nil {
-		log.Fatalf("Validation failed: %v", err)
-	} else {
-		fmt.Println("Validation passed")
-	}
-
 	// Fetch sheet records & anki notes to compare get diff
 	ankiClient := anki.NewClient()
 	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
+
+	ankiNotesDetail, err := anki.GetAnkiNotesDetail(ankiClient, cfg.AnkiDeck, "Expression")
+	if err != nil {
+		log.Fatalf("Failed to get anki notes detail: %v", err)
+	}
+	fmt.Printf("Fetched %d notes from Anki\n", len(ankiNotesDetail))
 
 	records, err := sheetFetcher.GetRecords()
 	if err != nil {
@@ -66,11 +66,16 @@ func main() {
 	}
 	fmt.Printf("Fetched %d records from sheet\n", len(records))
 
-	models, err := ankiClient.GetModels()
-	if err != nil {
-		log.Fatalf("Failed to get models: %v", err)
-	}
-	fmt.Println("Anki Models:", models)
+	// INSTEAD of this
+	// compareNotes(&ankiNotesDetail, &records)
+	// what if we do 	
+	// process diff as we process each sheet record?
+	// r := reader.Read()
+	// ProcessDiff(r, &ankiNotesDetail)
+	// func (s *SheetFetcher) ProcessDiff(record *sheet.Record, ankiData *map[string]anki.NoteDetail) {
+	// 	
+	// }
+
 
 	if cfg.DryRun {
 		fmt.Println("Dry run mode - not adding notes to Anki")
@@ -84,4 +89,3 @@ func main() {
 	// Create notes
 	// Add notes to anki
 }
-

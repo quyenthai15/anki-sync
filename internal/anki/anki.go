@@ -14,10 +14,10 @@ const (
 )
 
 // Request represents an Anki Connect API request
-type Request[T map[string]any] struct {
-	Action  string `json:"action"`
-	Params  T      `json:"params"`
-	Version int    `json:"version"`
+type Request struct {
+	Action  string         `json:"action"`
+	Params  map[string]any `json:"params"`
+	Version int            `json:"version"`
 }
 
 // Response represents an Anki Connect API response
@@ -67,9 +67,9 @@ type Client struct {
 	url string
 }
 
-func invoke[T any](c *Client, action string, params map[string]any) (T, error) {
-	var result T
-	req := Request[map[string]any]{
+func invoke[R any](c *Client, action string, params map[string]any) (R, error) {
+	var result R
+	req := Request{
 		Action:  action,
 		Params:  params,
 		Version: 6,
@@ -89,7 +89,7 @@ func invoke[T any](c *Client, action string, params map[string]any) (T, error) {
 	if err != nil {
 		return result, err
 	}
-	var response Response[T]
+	var response Response[R]
 	if err := json.Unmarshal(body, &response); err != nil {
 		return result, err
 	}
@@ -118,15 +118,18 @@ func (c *Client) GetDeckNames() ([]string, error) {
 }
 
 func (c *Client) GetModelFields(modelName string) ([]string, error) {
-	return invoke[[]string](c, "modelFieldNames", map[string]any{"modelName": modelName})
+	params := map[string]any{"modelName": modelName}
+	return invoke[[]string](c, "modelFieldNames", params)
 }
 
 func (c *Client) GetNotes(deckName string) ([]int, error) {
-	return invoke[[]int](c, "findNotes", map[string]any{"query": fmt.Sprintf("deck:%s", deckName)})
+	params := map[string]any{"query": fmt.Sprintf("deck:%s", deckName)}
+	return invoke[[]int](c, "findNotes", params)
 }
 
 func (c *Client) GetNotesInfo(noteIds []int) ([]NoteInfo, error) {
-	infos, err := invoke[[]NoteInfo](c, "notesInfo", map[string]any{"notes": noteIds})
+	params := map[string]any{"notes": noteIds}
+	infos, err := invoke[[]NoteInfo](c, "notesInfo", params)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +173,7 @@ func GetAnkiNotesDetail(client *Client, deckName string, keyField string) (map[s
 		return nil, err
 	}
 
-	notesByWord := make(map[string]NoteDetail)
+	notesByWord := make(map[string]NoteDetail, len(notesInfo))
 	for _, note := range notesInfo {
 		// Extract the key field value
 		keyValue, err := GetFieldValue(note.Fields, keyField)

@@ -29,6 +29,7 @@ func (f *Fetcher) GetRecords() ([]Record, error) {
 	}
 
 	reader := csv.NewReader(resp.Body)
+	reader.TrimLeadingSpace = true
 	header, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read header: %w", err)
