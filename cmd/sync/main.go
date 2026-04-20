@@ -20,7 +20,7 @@ type AnkiReader interface {
 
 type AnkiWriter interface {
 	AddNotes(notes []anki.Note) error
-	MultiUpdate(actions []anki.Action[map[string]any]) ([]any, error)
+	MultiUpdate(actions []anki.Request[map[string]any]) ([]any, error)
 }
 
 type SheetFetcher interface {
