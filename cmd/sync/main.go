@@ -10,25 +10,36 @@ import (
 )
 
 
-type AnkiClient interface {
-	AddNotes(notes []anki.Note) error
-	// TODO: these are for validation, not sure if needed
-	// GetModels() ([]string, error)
-	// GetDeckNames() ([]string, error)
-	// GetModelFields(modelName string) ([]string, error) -> this is to initial setup, not sure if still needed
+type AnkiReader interface {
+	GetModels() ([]string, error)
+	GetDeckNames() ([]string, error)
+	GetModelFields(modelName string) ([]string, error) // TODO: this is to initial setup, not sure if still needed
 	GetNotes(deckName string) ([]int, error)
 	GetNoteInfo(noteId int) (map[string]any, error)
-	MultiUpdate(actions []anki.Action) ([]any, error)
 }
 
+type AnkiWriter interface {
+	AddNotes(notes []anki.Note) error
+	MultiUpdate(actions []anki.Action[map[string]any]) ([]any, error)
+}
 
 type SheetFetcher interface {
-	GetRecords(url string) ([]sheet.Record, error)
+	GetRecords() ([]sheet.Record, error)
 }
 
+/**
+* This function should:
+* 1. Load config
+* 2. Validate config
+* 3. Create anki client
+* 4. Create sheet client
+* 5. Fetch records
+* 6. Create notes
+* 7. Add notes to anki
+ */
 func main() {
 	force := flag.Bool("force", false, "Force sync")
-	dryRun := flag.Bool("dry-run", true, "Dry run")
+	dryRun := flag.Bool("dry-run", false, "Dry run")
 	flag.Parse()
 
 	cfg, err := config.LoadConfig("config.json")
@@ -44,5 +55,33 @@ func main() {
 	} else {
 		fmt.Println("Validation passed")
 	}
+
+	// Fetch sheet records & anki notes to compare get diff
+	ankiClient := anki.NewClient()
+	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
+
+	records, err := sheetFetcher.GetRecords()
+	if err != nil {
+		log.Fatalf("Failed to fetch sheet records: %v", err)
+	}
+	fmt.Printf("Fetched %d records from sheet\n", len(records))
+
+	models, err := ankiClient.GetModels()
+	if err != nil {
+		log.Fatalf("Failed to get models: %v", err)
+	}
+	fmt.Println("Anki Models:", models)
+
+	if cfg.DryRun {
+		fmt.Println("Dry run mode - not adding notes to Anki")
+		return
+	}
+
+	if cfg.ForceSync {
+		// if force sync, update existing notes with new data
+	}
+
+	// Create notes
+	// Add notes to anki
 }
 
