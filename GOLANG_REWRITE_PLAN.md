@@ -13,191 +13,96 @@ Each session has: what to learn → what to build → resources.
 
 ---
 
-## Phase 1 — Go Fundamentals (no project code yet)
+## Phase 1 — Go Fundamentals
 
 ### ✅ Session 1 — The Go toolchain & your first program 
 
 **Learn**
 - How Go modules work (`go mod init`, `go.mod`, `go.sum`)
 - `package main`, `func main()`, `go run`, `go build`
-- Variables, types, `:=` vs `var`, zero values
-- `fmt.Println`, `fmt.Printf`, `fmt.Errorf`
-
-**Resources**
-- [A Tour of Go — Basics](https://go.dev/tour/basics/1) (sections 1–14)
-- [How to Write Go Code](https://go.dev/doc/code) (official guide, 10 min read)
-
-**Practice Task**
-```
-mkdir anki-sync-go && cd anki-sync-go
-go mod init github.com/yourname/anki-sync-go
-```
-Write `main.go` that prints `"AnkiSync v0.1"` and the current date using `time.Now()`.
-
----
 
 ### ✅ Session 2 — Structs, methods, and interfaces
 
 **Learn**
 - Structs and field access
 - Methods with value vs pointer receivers
-- Interfaces (implicit satisfaction — the key Go idea)
-- `error` type and returning errors
+- Interfaces (implicit satisfaction)
 
-**Resources**
-- [A Tour of Go — Methods and Interfaces](https://go.dev/tour/methods/1) (sections 1–20)
-- [Go by Example: Structs](https://gobyexample.com/structs), [Interfaces](https://gobyexample.com/interfaces), [Errors](https://gobyexample.com/errors)
-
-**Practice Task**
-Define a `Config` struct matching `config.json`:
-```go
-type Config struct {
-    SheetCSVURL         string            `json:"sheet_csv_url"`
-    AnkiDeck            string            `json:"anki_deck"`
-    AnkiModel           string            `json:"anki_model"`
-    Mapping             map[string]string `json:"mapping"`
-    AudioField          string            `json:"audio_field"`
-    SentenceAudioField  string            `json:"sentence_audio_field"`
-    SentenceSourceCol   string            `json:"sentence_source_col"`
-    ForceSync           bool
-    DryRun              bool
-}
-```
-Write a `String() string` method on it and print it.
-
----
-
-### Session 3 — JSON, file I/O, and OS args
+### ✅ Session 3 — JSON, file I/O, and OS args
 
 **Learn**
 - `encoding/json`: `json.Unmarshal`, struct tags
 - `os.ReadFile`, `os.Args`
-- `log.Fatal` for early exits
-- Slice iteration with `range`
-
-**Resources**
-- [Go by Example: JSON](https://gobyexample.com/json)
-- [Go by Example: Reading Files](https://gobyexample.com/reading-files)
-- [Go by Example: Command-Line Arguments](https://gobyexample.com/command-line-arguments)
 
 **Project Task — `config.go`**
-Port `lib/config.js` → `internal/config/config.go`.
-- Read `config.json` with `os.ReadFile` + `json.Unmarshal`
-- Check `os.Args` for `--force` and `--dry-run` flags
-- Return `(Config, error)` — no `process.exit` in library code
+- Port `lib/config.js` → `internal/config/config.go`.
+- Read `config.json` with `os.ReadFile` + `json.Unmarshal`.
 
 ---
 
 ## Phase 2 — HTTP and AnkiConnect
 
-### Session 4 — HTTP client and JSON round-trips
+### ✅ Session 4 — HTTP client and JSON round-trips
 
 **Learn**
 - `net/http`: `http.Post`, `http.NewRequest`, `http.Client`
-- Read response body: `io.ReadAll`
-- `json.Marshal` / `json.Unmarshal` on request/response
-- Custom `http.Transport` (equivalent to the Node `http.Agent`)
-
-**Resources**
-- [Go by Example: HTTP Client](https://gobyexample.com/http-client)
-- [net/http docs](https://pkg.go.dev/net/http)
-- [Go by Example: JSON](https://gobyexample.com/json) (revisit the decode side)
+- **Body Lifecycle**: Mandatory `resp.Body.Close()` and how it enables connection reuse.
+- `json.Marshal` / `json.Unmarshal` on request/response.
 
 **Project Task — `anki.go`**
-Port `lib/anki.js` → `internal/anki/anki.go`.
-- Define `AnkiRequest` and `AnkiResponse[T]` structs (use generics or `any`)
-- Write `ankiAction(action string, params any) (any, error)`
-- Wire up a custom transport with `DisableKeepAlives: true` (matches current Node behaviour; you can relax this later)
-- Test it: call `deckNames` and print the result
+- Port `lib/anki.js` → `internal/anki/anki.go`.
+- Define `Action[T]` and `Response[T]` structs.
+- Implement `invoke` (private helper) and public methods like `GetDeckNames`.
 
----
-
-### Session 5 — Generics (light touch)
+### ✅ Session 5 — Generics (light touch)
 
 **Learn**
-- Why generics: avoid `any` casts everywhere
-- `func Foo[T any](...)`, type constraints
-- When NOT to use generics (most of the time)
-
-**Resources**
-- [Tutorial: Getting started with generics](https://go.dev/doc/tutorial/generics)
-- [Go by Example: Generics](https://gobyexample.com/generics)
+- `func Foo[T any](...)` for reusable API logic.
 
 **Project Task — improve `anki.go`**
-Replace the `any` return with a typed helper:
-```go
-type AnkiResponse[T any] struct {
-    Result T      `json:"result"`
-    Error  string `json:"error"`
-}
-
-func ankiAction[T any](action string, params any) (T, error)
-```
-Use this to get a `[]string` back from `deckNames` without casting.
+- Use generics in `invoke[T any]` to return typed results directly from AnkiConnect.
 
 ---
 
 ## Phase 3 — CSV, diff logic, and planning
 
-### Session 6 — Maps, slices, and the standard library
+### Session 6 & 7 — Maps, Closures, and the Streaming Diff
 
 **Learn**
-- `map[K]V`: creation, lookup, delete, iteration order
-- Slice patterns: `append`, spread (`s...`), copy
-- `strings` package: `TrimSpace`, `Contains`, `ReplaceAll`
-- `unicode/utf8` and `golang.org/x/text/unicode/norm` for NFC normalization
+- **Maps in Depth**: Lookup with "comma ok" (`val, ok := m[key]`), `delete(m, key)`, and iteration.
+- **Higher-Order Functions & Closures**: How to pass a `func` as an argument to implement the "Iterator" pattern.
+- **Streaming IO**: Using `csv.Reader.Read()` in a loop to process infinite data with constant memory.
+- **Resources**: 
+    - [Go Blog: Go maps in action](https://go.dev/blog/maps)
+    - [GobyExample: Closures](https://gobyexample.com/closures)
+    - [Effective Go: Errors](https://go.dev/doc/effective_go#errors) (how to wrap errors in a stream)
 
-**Resources**
-- [A Tour of Go — Maps](https://go.dev/tour/moretypes/19)
-- [Go by Example: Maps](https://gobyexample.com/maps)
-- [golang.org/x/text](https://pkg.go.dev/golang.org/x/text/unicode/norm) (add with `go get`)
+**Project Task — The "Stream & Capture" Diff**
+1.  **Refactor `internal/sheet/sheet.go`**: Implement `ForEachRecord(callback func(Record) error) error`.
+2.  **Implement `internal/diff/diff.go`**: Logic to compare a single `Record` against an `AnkiNote`.
+3.  **Wire `cmd/sync/main.go`**:
+    - Load Anki notes into a map.
+    - Stream the Sheet using `ForEachRecord`.
+    - In the callback: Compare, track `toAdd`/`toUpdate`, and `delete` from the map to track "seen" notes.
+    - Identify "Deletions" from the remaining map entries.
 
-**Project Task — `diff.go` + `anki.go` (getAnkiDataMap)**
-Port `lib/diff.js` → `internal/diff/diff.go`:
-- `BuildNoteFields(row map[string]string, mapping map[string]string) map[string]string`
-- `GetFieldChanges(fields map[string]string, existing map[string]string) map[string][2]string` (returns `[old, new]` pairs or nil)
-
-Port `getAnkiDataMap` in `anki.go`:
-- Return `map[string]ExistingNote` keyed by the primary field value
-- Keep sequential chunks for now (you'll parallelize in Phase 5)
-
----
-
-### Session 7 — HTTP GET and CSV parsing
-
-**Learn**
-- `net/http` GET requests
-- `encoding/csv`: `csv.NewReader`, `Reader.ReadAll`, `Reader.Read`
-- Turning CSV rows + headers into `[]map[string]string`
-
-**Resources**
-- [Go by Example: HTTP Client](https://gobyexample.com/http-client)
-- [encoding/csv docs](https://pkg.go.dev/encoding/csv)
-
-**Project Task — `fetcher.go`**
-Port the CSV fetch from `sync.js` lines 17–23 → `internal/fetcher/fetcher.go`:
-- `FetchCSV(url string) ([]map[string]string, error)`
-- Returns records as `[]map[string]string` (column name → value), trimmed and NFC-normalised
+**Guiding Principles & Best Practices**
+- **Memory Efficiency**: Keep the "Input side" (Sheet) O(1) memory and the "State side" (Anki) O(N).
+- **Separation of Concerns**: `Fetcher` handles IO; `Planner` handles logic. The callback is the "glue".
+- **Defensive Keys**: Trim spaces and normalize unicode (NFC) when using strings as map keys.
+- **Batching**: Even though you process rows one-by-one, collect the *results* into a slice so you can send a single "Multi-Action" request to Anki at the end.
 
 ---
 
 ### Session 8 — Validate and planner
 
 **Learn**
-- Multiple return values
-- Named return values (use sparingly)
-- Wrapping errors: `fmt.Errorf("context: %w", err)` and `errors.Is`
-
-**Resources**
-- [Go by Example: Multiple Return Values](https://gobyexample.com/multiple-return-values)
-- [Go blog: Error handling and Go](https://go.dev/blog/error-handling-and-go)
-- [Go blog: Working with Errors in Go 1.13](https://go.dev/blog/go1.13-errors)
+- Multiple return values.
+- Wrapping errors: `fmt.Errorf("...: %w", err)`.
 
 **Project Tasks**
-- Port `lib/validate.js` → `internal/validate/validate.go`
-- Port `lib/planner.js` → `internal/planner/planner.go`
-  - Define `NoteToAdd` and `NoteToUpdate` structs
-  - `BuildSyncPlan(records []map[string]string, cfg config.Config, ankiDataMap map[string]ExistingNote) ([]NoteToAdd, []NoteToUpdate, error)`
+- Port `lib/validate.js` → `internal/validate/validate.go`.
+- Port `lib/planner.js` → `internal/planner/planner.go`.
 
 ---
 
@@ -210,12 +115,8 @@ Port the CSV fetch from `sync.js` lines 17–23 → `internal/fetcher/fetcher.go
 - `regexp`: `MustCompile`, `ReplaceAllString`
 - `path/filepath` for safe filenames
 
-**Resources**
-- [Go by Example: Regular Expressions](https://gobyexample.com/regular-expressions)
-- [net/url docs](https://pkg.go.dev/net/url)
-
 **Project Task — `audio.go`**
-Port `lib/audio.js` → `internal/audio/audio.go`:
+- Port `lib/audio.js` → `internal/audio/audio.go`:
 - `GetTTSUrl(text, lang string) string`
 - `SanitizeFilename(name, prefix string) string`
 - `GetAudioSyncPlan(cfg config.Config, fields map[string]string, existing *ExistingNote) AudioPlan`
@@ -234,8 +135,8 @@ Port `lib/audio.js` → `internal/audio/audio.go`:
 - [flag package docs](https://pkg.go.dev/flag)
 
 **Project Task — wire up `main.go`**
-Replace the `os.Args` check in `config.go` with proper `flag` parsing in `main.go`.
-The binary should support: `anki-sync [--force] [--dry-run]`
+- Replace the `os.Args` check in `config.go` with proper `flag` parsing in `main.go`.
+- The binary should support: `anki-sync [--force] [--dry-run]`
 
 ---
 
@@ -245,9 +146,6 @@ The binary should support: `anki-sync [--force] [--dry-run]`
 - Variadic functions
 - `fmt.Sprintf` formatting verbs
 - ANSI escape codes in terminal output (same as Node — just strings)
-
-**Resources**
-- [Go by Example: String Formatting](https://gobyexample.com/string-formatting)
 
 **Project Tasks**
 - Port `lib/executor.js` → `internal/executor/executor.go`
@@ -320,8 +218,8 @@ This unblocks field updates from slow Google TTS downloads.
 - [httptest docs](https://pkg.go.dev/net/http/httptest)
 
 **Project Task — port the test suite**
-- Table-driven tests for `BuildNoteFields` and `GetFieldChanges` (pure functions, easy to test)
-- HTTP mock test for `ankiAction` using `httptest.NewServer`
+- Table-driven tests for `BuildNoteFields` and `GetFieldChanges`.
+- HTTP mock test for `ankiAction` using `httptest.NewServer`.
 
 ---
 
@@ -329,7 +227,7 @@ This unblocks field updates from slow Google TTS downloads.
 
 **Learn**
 - Standard Go project layout: `cmd/`, `internal/`
-- `internal/` visibility rules (packages only importable within the module)
+- `internal/` visibility rules
 - `go build ./...`, `go test ./...`
 - Cross-compilation: `GOOS=darwin GOARCH=arm64 go build`
 
@@ -338,36 +236,8 @@ This unblocks field updates from slow Google TTS downloads.
 - [Go Modules reference](https://go.dev/ref/mod)
 
 **Project Task — final integration**
-Final directory structure:
-```
-anki-sync-go/
-├── cmd/
-│   └── sync/
-│       └── main.go          ← entry point, flag parsing, spinner output
-├── internal/
-│   ├── anki/
-│   │   └── anki.go          ← ankiAction, getAnkiDataMap
-│   ├── audio/
-│   │   └── audio.go
-│   ├── config/
-│   │   └── config.go
-│   ├── diff/
-│   │   └── diff.go
-│   ├── executor/
-│   │   └── executor.go
-│   ├── fetcher/
-│   │   └── fetcher.go
-│   ├── planner/
-│   │   └── planner.go
-│   ├── reporter/
-│   │   └── reporter.go
-│   └── validate/
-│       └── validate.go
-├── config.json
-├── go.mod
-└── go.sum
-```
-Wire everything together. Run `go build ./...` — it should produce a single binary.
+- Final directory structure wiring.
+- Ensure `go build ./...` produces a single binary.
 
 ---
 
@@ -375,13 +245,13 @@ Wire everything together. Run `go build ./...` — it should produce a single bi
 
 | Session | Topic                          | Status |
 |---------|-------------------------------|--------|
-| 1       | Toolchain & first program      | [ ]    |
-| 2       | Structs, methods, interfaces   | [ ]    |
-| 3       | JSON, file I/O, os args        | [ ]    |
-| 4       | HTTP client + ankiAction       | [ ]    |
-| 5       | Generics (typed ankiAction)    | [ ]    |
+| 1       | Toolchain & first program      | [x]    |
+| 2       | Structs, methods, interfaces   | [x]    |
+| 3       | JSON, file I/O, os args        | [x]    |
+| 4       | HTTP client + ankiAction       | [x]    |
+| 5       | Generics (typed ankiAction)    | [x]    |
 | 6       | Maps, slices, diff.go          | [ ]    |
-| 7       | HTTP GET + CSV parsing         | [ ]    |
+| 7       | HTTP GET + CSV parsing         | [x]    |
 | 8       | Validate + planner             | [ ]    |
 | 9       | String/URL + audio.go          | [ ]    |
 | 10      | CLI flags                      | [ ]    |
