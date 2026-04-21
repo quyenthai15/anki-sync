@@ -100,4 +100,3 @@ func (f *Fetcher) ForEachRecord(callback func(Record) error) error {
 
 	return nil
 }
-

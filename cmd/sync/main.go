@@ -3,6 +3,7 @@ package main
 import (
 	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
+	"anki-sync-go/internal/executor"
 	"anki-sync-go/internal/plan"
 	"anki-sync-go/internal/sheet"
 	"flag"
@@ -31,26 +32,27 @@ func main() {
 	ankiClient := anki.NewClient()
 	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
 
-	primaryColumn, err := sheetFetcher.GetFirstColumnName()
+	primarySheetCol, err := sheetFetcher.GetFirstColumnName()
 	if err != nil {
 		log.Fatalf("Failed to get sheet headers: %v", err)
 	}
 
-	ankiData, err := anki.NormalizeAnkiNotes(ankiClient, cfg.AnkiDeck, primaryColumn)
+	ankiData, err := anki.NormalizeAnkiNotes(ankiClient, cfg.AnkiDeck, primarySheetCol)
 	if err != nil {
-		log.Printf("Failed to get anki notes detail: %v", err)
+		log.Fatalf("Failed to get anki notes detail: %v", err)
 	}
 	fmt.Printf("Fetched %d notes from Anki\n", len(ankiData))
 
-	syncPlan := plan.SyncPlan{}
+	syncPlan := plan.NewSyncPlan(cfg)
 	sheetFetcher.ForEachRecord(func(r sheet.Record) error {
-		existing, found := ankiData[r[primaryColumn]]
+
+		existing, found := ankiData[r[primarySheetCol]]
 		if !found {
 			// Build new note action
 			syncPlan.AddNewNote(r)
 		} else if cfg.ForceSync {
 			// Check if note is different
-			diff := plan.GetDiff(r, existing)
+			diff := syncPlan.GetDiff(r, existing)
 			if diff != nil {
 				// Build updated note action
 				syncPlan.AddUpdatedNote(existing.NoteID, diff)
@@ -64,10 +66,16 @@ func main() {
 		return
 	}
 	// Post plan to anki
+	executor := executor.NewExecutor(ankiClient)
 	if len(syncPlan.NewNotes) > 0 {
-		// TODO: Post new notes to anki
+		if err := executor.ExecuteAdditions(syncPlan.NewNotes); err != nil {
+			log.Fatalf("Failed to execute additions: %v", err)
+		}
 	}
 	if len(syncPlan.UpdatedNotes) > 0 {
-		// TODO: Post updated notes to anki
+		if err := executor.ExecuteUpdates(syncPlan.UpdatedNotes); err != nil {
+			log.Fatalf("Failed to execute updates: %v", err)
+		}
 	}
+	fmt.Printf("Synced %d new notes and %d updated notes\n", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))
 }

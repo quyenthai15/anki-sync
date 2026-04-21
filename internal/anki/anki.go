@@ -26,14 +26,14 @@ type Response[T any] struct {
 	Result T   `json:"result"`
 }
 
-// FieldValue represents the structure of Anki field values
-type FieldValue struct {
+// RawFieldValue represents the structure of Anki field values
+type RawFieldValue struct {
 	Value string `json:"value"`
 	Order int    `json:"order"`
 }
 
 // StringValue returns the string value of the field
-func (fv FieldValue) StringValue() string {
+func (fv RawFieldValue) StringValue() string {
 	return fv.Value
 }
 
@@ -44,23 +44,23 @@ type NormalizedNote struct {
 }
 
 // Note represents an Anki note with proper field structure
-// type Note struct {
-// 	DeckName  string                 `json:"deckName"`
-// 	ModelName string                 `json:"modelName"`
-// 	Audio     string                 `json:"audio"`
-// 	Fields    map[string]FieldValue  `json:"fields"`
-// 	Tags      []string               `json:"tags"`
-// 	Options   map[string]any         `json:"options"`
-// }
+type NoteToAdd struct {
+	DeckName  string            `json:"deckName"`
+	ModelName string            `json:"modelName"`
+	Audio     string            `json:"audio"`
+	Fields    map[string]string `json:"fields"`
+	Tags      []string          `json:"tags"`
+	Options   map[string]any    `json:"options"`
+}
 
-// NoteInfo represents detailed information about an Anki note
-type NoteInfo struct {
-	NoteId    int                   `json:"noteId"`
-	Fields    map[string]FieldValue `json:"fields"`
-	ModelName string                `json:"modelName"`
-	Cards     []int                 `json:"cards"`
-	Tags      []string              `json:"tags"`
-	Mod       int                   `json:"mod"`
+// RawNote represents raw Anki note data
+type RawNote struct {
+	NoteId    int                      `json:"noteId"`
+	Fields    map[string]RawFieldValue `json:"fields"`
+	ModelName string                   `json:"modelName"`
+	Cards     []int                    `json:"cards"`
+	Tags      []string                 `json:"tags"`
+	Mod       int                      `json:"mod"`
 }
 
 type Client struct {
@@ -127,9 +127,9 @@ func (c *Client) GetNotes(deckName string) ([]int, error) {
 	return invoke[[]int](c, "findNotes", params)
 }
 
-func (c *Client) GetNotesInfo(noteIds []int) ([]NoteInfo, error) {
+func (c *Client) GetNotesInfo(noteIds []int) ([]RawNote, error) {
 	params := map[string]any{"notes": noteIds}
-	infos, err := invoke[[]NoteInfo](c, "notesInfo", params)
+	infos, err := invoke[[]RawNote](c, "notesInfo", params)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (c *Client) GetNotesInfo(noteIds []int) ([]NoteInfo, error) {
 }
 
 // ExtractFields converts map[string]FieldValue to map[string]string
-func ExtractFields(fields map[string]FieldValue) map[string]string {
+func ExtractFields(fields map[string]RawFieldValue) map[string]string {
 	result := make(map[string]string)
 	for name, field := range fields {
 		result[name] = field.StringValue()
@@ -149,7 +149,7 @@ func ExtractFields(fields map[string]FieldValue) map[string]string {
 }
 
 // GetFieldValue safely extracts a field value from a map of FieldValue
-func GetFieldValue(fields map[string]FieldValue, fieldName string) (string, error) {
+func GetFieldValue(fields map[string]RawFieldValue, fieldName string) (string, error) {
 	field, exists := fields[fieldName]
 	if !exists {
 		return "", fmt.Errorf("field '%s' not found", fieldName)
@@ -157,7 +157,7 @@ func GetFieldValue(fields map[string]FieldValue, fieldName string) (string, erro
 	return field.StringValue(), nil
 }
 
-// NormalizeAnkiNotes retrieves detailed note information with extracted field values
+// NormalizeAnkiNotes retrieves raw Anki note data and extracts field values
 func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (map[string]NormalizedNote, error) {
 	notes, err := client.GetNotes(deckName)
 	if err != nil {
@@ -193,4 +193,9 @@ func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (map[s
 		}
 	}
 	return notesByWord, nil
+}
+
+func (c *Client) AddNotes(notes []NoteToAdd) ([]int, error) {
+	params := map[string]any{"notes": notes}
+	return invoke[[]int](c, "addNotes", params)
 }

@@ -2,7 +2,9 @@ package plan
 
 import (
 	"anki-sync-go/internal/anki"
+	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/sheet"
+	"fmt"
 )
 
 // NoteToAdd represents the data needed to create a new note in Anki
@@ -18,8 +20,15 @@ type NoteToUpdate struct {
 
 // SyncPlan holds the pending changes identified during the diffing phase
 type SyncPlan struct {
+	Config       *config.Config
 	NewNotes     []NoteToAdd
 	UpdatedNotes []NoteToUpdate
+}
+
+func NewSyncPlan(cfg *config.Config) *SyncPlan {
+	return &SyncPlan{
+		Config: cfg,
+	}
 }
 
 // AddNewNote adds a new note to the plan
@@ -34,14 +43,21 @@ func (p *SyncPlan) AddUpdatedNote(id int, fields map[string]string) {
 
 // GetDiff compares a sheet record with an existing Anki note.
 // It returns a map of fields that are different, or nil if they are identical.
-func GetDiff(sheetRecord sheet.Record, ankiRecord anki.NormalizedNote) map[string]string {
+func (p *SyncPlan) GetDiff(sheetRecord sheet.Record, ankiRecord anki.NormalizedNote) map[string]string {
 	diff := make(map[string]string)
-
 	for key, sheetVal := range sheetRecord {
-		ankiVal, exists := ankiRecord.Fields[key]
-		// If field is missing in Anki or values differ, mark for update
-		if !exists || sheetVal != ankiVal {
+		ankiVal, exist := ankiRecord.Fields[p.Config.Mapping[key]]
+		if !exist {
+			// ignore extra sheet columns
+			continue
+		}
+		if ankiVal != sheetVal {
 			diff[key] = sheetVal
+			fmt.Printf("Field %s differs: sheet=%s, anki=%s\n", key, sheetVal, ankiVal)
+			// Check if sentence source is there
+			if p.Config.SentenceAudioField != "" && key == p.Config.SentenceSourceCol {
+				diff[p.Config.SentenceAudioField] = "[sentence_audio]"
+			}
 		}
 	}
 
