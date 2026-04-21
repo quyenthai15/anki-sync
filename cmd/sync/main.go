@@ -3,40 +3,17 @@ package main
 import (
 	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
+	"anki-sync-go/internal/plan"
 	"anki-sync-go/internal/sheet"
 	"flag"
 	"fmt"
 	"log"
 )
 
-
-type AnkiReader interface {
-	GetModels() ([]string, error)
-	GetDeckNames() ([]string, error)
-	GetModelFields(modelName string) ([]string, error) // TODO: this is to initial setup, not sure if still needed
-	GetNotes(deckName string) ([]int, error)
-	GetNotesInfo(noteIds []int) ([]anki.NoteInfo, error)
-}
-
-type AnkiWriter interface {
-	AddNotes(notes []anki.Note) error
-	MultiUpdate(actions []anki.Request) ([]any, error)
-}
-
 type SheetFetcher interface {
-	GetRecords() ([]sheet.Record, error)
+	ForEachRecord(callback func(sheet.Record) error) error
 }
 
-/**
-* This function should:
-* 1. Load config
-* 2. Validate config
-* 3. Create anki client
-* 4. Create sheet client
-* 5. Fetch records
-* 6. Create notes
-* 7. Add notes to anki
- */
 func main() {
 	force := flag.Bool("force", false, "Force sync")
 	dryRun := flag.Bool("dry-run", false, "Dry run")
@@ -54,38 +31,43 @@ func main() {
 	ankiClient := anki.NewClient()
 	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
 
-	ankiNotesDetail, err := anki.GetAnkiNotesDetail(ankiClient, cfg.AnkiDeck, "Expression")
+	primaryColumn, err := sheetFetcher.GetFirstColumnName()
 	if err != nil {
-		log.Fatalf("Failed to get anki notes detail: %v", err)
+		log.Fatalf("Failed to get sheet headers: %v", err)
 	}
-	fmt.Printf("Fetched %d notes from Anki\n", len(ankiNotesDetail))
 
-	records, err := sheetFetcher.GetRecords()
+	ankiData, err := anki.NormalizeAnkiNotes(ankiClient, cfg.AnkiDeck, primaryColumn)
 	if err != nil {
-		log.Fatalf("Failed to fetch sheet records: %v", err)
+		log.Printf("Failed to get anki notes detail: %v", err)
 	}
-	fmt.Printf("Fetched %d records from sheet\n", len(records))
+	fmt.Printf("Fetched %d notes from Anki\n", len(ankiData))
 
-	// INSTEAD of this
-	// compareNotes(&ankiNotesDetail, &records)
-	// what if we do 	
-	// process diff as we process each sheet record?
-	// r := reader.Read()
-	// ProcessDiff(r, &ankiNotesDetail)
-	// func (s *SheetFetcher) ProcessDiff(record *sheet.Record, ankiData *map[string]anki.NoteDetail) {
-	// 	
-	// }
-
+	syncPlan := plan.SyncPlan{}
+	sheetFetcher.ForEachRecord(func(r sheet.Record) error {
+		existing, found := ankiData[r[primaryColumn]]
+		if !found {
+			// Build new note action
+			syncPlan.AddNewNote(r)
+		} else if cfg.ForceSync {
+			// Check if note is different
+			diff := plan.GetDiff(r, existing)
+			if diff != nil {
+				// Build updated note action
+				syncPlan.AddUpdatedNote(existing.NoteID, diff)
+			}
+		}
+		return nil
+	})
 
 	if cfg.DryRun {
 		fmt.Println("Dry run mode - not adding notes to Anki")
 		return
 	}
-
-	if cfg.ForceSync {
-		// if force sync, update existing notes with new data
+	// Post plan to anki
+	if len(syncPlan.NewNotes) > 0 {
+		// TODO: Post new notes to anki
 	}
-
-	// Create notes
-	// Add notes to anki
+	if len(syncPlan.UpdatedNotes) > 0 {
+		// TODO: Post updated notes to anki
+	}
 }

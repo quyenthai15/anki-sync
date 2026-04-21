@@ -87,10 +87,10 @@ func (c *Config) ValidateWithAnki(anki AnkiProvider) error {
 	return nil
 }
 
-// ValidateWithSheet checks if the mapping keys exist as columns in the provided sample record.
-func (c *Config) ValidateWithSheet(sample map[string]string) error {
+// ValidateWithSheet checks if the mapping keys exist as columns.
+func (c *Config) ValidateWithSheet(headers []string) error {
 	for sheetCol := range c.Mapping {
-		if _, exists := sample[sheetCol]; !exists {
+		if !slices.Contains(headers, sheetCol) {
 			return fmt.Errorf("column '%s' not found in Google Sheet", sheetCol)
 		}
 	}

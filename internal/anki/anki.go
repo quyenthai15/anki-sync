@@ -37,30 +37,30 @@ func (fv FieldValue) StringValue() string {
 	return fv.Value
 }
 
-// NoteDetail represents the extracted note information with clean field values
-type NoteDetail struct {
+// NormalizedNote represents the extracted note information with clean field values
+type NormalizedNote struct {
 	NoteID int               `json:"noteId"`
 	Fields map[string]string `json:"fields"`
 }
 
 // Note represents an Anki note with proper field structure
-type Note struct {
-	DeckName  string                 `json:"deckName"`
-	ModelName string                 `json:"modelName"`
-	Audio     string                 `json:"audio"`
-	Fields    map[string]FieldValue  `json:"fields"`
-	Tags      []string               `json:"tags"`
-	Options   map[string]any         `json:"options"`
-}
+// type Note struct {
+// 	DeckName  string                 `json:"deckName"`
+// 	ModelName string                 `json:"modelName"`
+// 	Audio     string                 `json:"audio"`
+// 	Fields    map[string]FieldValue  `json:"fields"`
+// 	Tags      []string               `json:"tags"`
+// 	Options   map[string]any         `json:"options"`
+// }
 
 // NoteInfo represents detailed information about an Anki note
 type NoteInfo struct {
-	NoteId    int                     `json:"noteId"`
-	Fields    map[string]FieldValue   `json:"fields"`
-	ModelName string                  `json:"modelName"`
-	Cards     []int                   `json:"cards"`
-	Tags      []string                `json:"tags"`
-	Mod       int                     `json:"mod"`
+	NoteId    int                   `json:"noteId"`
+	Fields    map[string]FieldValue `json:"fields"`
+	ModelName string                `json:"modelName"`
+	Cards     []int                 `json:"cards"`
+	Tags      []string              `json:"tags"`
+	Mod       int                   `json:"mod"`
 }
 
 type Client struct {
@@ -157,15 +157,15 @@ func GetFieldValue(fields map[string]FieldValue, fieldName string) (string, erro
 	return field.StringValue(), nil
 }
 
-// GetAnkiNotesDetail retrieves detailed note information with extracted field values
-func GetAnkiNotesDetail(client *Client, deckName string, keyField string) (map[string]NoteDetail, error) {
+// NormalizeAnkiNotes retrieves detailed note information with extracted field values
+func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (map[string]NormalizedNote, error) {
 	notes, err := client.GetNotes(deckName)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(notes) == 0 {
-		return make(map[string]NoteDetail), nil
+		return make(map[string]NormalizedNote), nil
 	}
 
 	notesInfo, err := client.GetNotesInfo(notes)
@@ -173,7 +173,7 @@ func GetAnkiNotesDetail(client *Client, deckName string, keyField string) (map[s
 		return nil, err
 	}
 
-	notesByWord := make(map[string]NoteDetail, len(notesInfo))
+	notesByWord := make(map[string]NormalizedNote, len(notesInfo))
 	for _, note := range notesInfo {
 		// Extract the key field value
 		keyValue, err := GetFieldValue(note.Fields, keyField)
@@ -183,11 +183,11 @@ func GetAnkiNotesDetail(client *Client, deckName string, keyField string) (map[s
 
 		// Trim and normalize the key value (equivalent to JS .trim().normalize('NFC'))
 		keyValue = strings.TrimSpace(keyValue)
-		
+
 		// Extract all field values
 		extractedFields := ExtractFields(note.Fields)
-		
-		notesByWord[keyValue] = NoteDetail{
+
+		notesByWord[keyValue] = NormalizedNote{
 			NoteID: note.NoteId,
 			Fields: extractedFields,
 		}

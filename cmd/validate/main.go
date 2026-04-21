@@ -32,13 +32,13 @@ func main() {
 
 	// 3. Sheet Column Validation (Remote Data)
 	fmt.Println("🔍 Checking Google Sheet...")
-	records, err := sheetFetcher.GetRecords()
+	headers, err := sheetFetcher.GetHeaders()
 	if err != nil {
 		log.Fatalf("❌ Sheet error: %v", err)
 	}
 
-	if len(records) > 0 {
-		if err := cfg.ValidateWithSheet(map[string]string(records[0])); err != nil {
+	if len(headers) > 0 {
+		if err := cfg.ValidateWithSheet(headers); err != nil {
 			log.Fatalf("❌ Sheet column error: %v", err)
 		}
 	} else {
