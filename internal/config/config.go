@@ -109,6 +109,18 @@ func (c *Config) String() string {
 	}`, c.SheetCSVURL, c.AnkiDeck, c.AnkiModel, c.Mapping, c.AudioField, c.SentenceAudioField, c.SentenceSourceCol)
 }
 
+// MapRecord converts a sheet record into Anki fields using the configured mapping
+func (c *Config) MapRecord(rec map[string]string) map[string]string {
+	fields := make(map[string]string)
+	for sheetCol, ankiField := range c.Mapping {
+		if val, ok := rec[sheetCol]; ok {
+			fields[ankiField] = val
+		}
+	}
+
+	return fields
+}
+
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

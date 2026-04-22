@@ -1,10 +1,7 @@
 package plan
 
 import (
-	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
-	"anki-sync-go/internal/sheet"
-	"fmt"
 )
 
 // NoteToAdd represents the data needed to create a new note in Anki
@@ -31,33 +28,28 @@ func NewSyncPlan(cfg *config.Config) *SyncPlan {
 	}
 }
 
-// AddNewNote adds a new note to the plan
-func (p *SyncPlan) AddNewNote(fields map[string]string) {
-	p.NewNotes = append(p.NewNotes, NoteToAdd{Fields: fields})
+// AddNewNote adds a new note to the plan. Fields must already be mapped to Anki field names.
+func (p *SyncPlan) AddNewNote(ankiFields map[string]string) {
+	p.NewNotes = append(p.NewNotes, NoteToAdd{Fields: ankiFields})
 }
 
 // AddUpdatedNote adds an update to an existing note to the plan
-func (p *SyncPlan) AddUpdatedNote(id int, fields map[string]string) {
-	p.UpdatedNotes = append(p.UpdatedNotes, NoteToUpdate{NoteID: id, Fields: fields})
+func (p *SyncPlan) AddUpdatedNote(id int, changedFields map[string]string) {
+	p.UpdatedNotes = append(p.UpdatedNotes, NoteToUpdate{NoteID: id, Fields: changedFields})
 }
 
-// GetDiff compares a sheet record with an existing Anki note.
-// It returns a map of fields that are different, or nil if they are identical.
-func (p *SyncPlan) GetDiff(sheetRecord sheet.Record, ankiRecord anki.NormalizedNote) map[string]string {
+// Diff compares target fields with existing fields.
+// It returns a map of fields that need updating, or nil if they are identical.
+func Diff(target, existing map[string]string) map[string]string {
 	diff := make(map[string]string)
-	for key, sheetVal := range sheetRecord {
-		ankiVal, exist := ankiRecord.Fields[p.Config.Mapping[key]]
-		if !exist {
+	for key, targetVal := range target {
+		existingVal, exists := existing[key]
+		if !exists {
 			// ignore extra sheet columns
 			continue
 		}
-		if ankiVal != sheetVal {
-			diff[key] = sheetVal
-			fmt.Printf("Field %s differs: sheet=%s, anki=%s\n", key, sheetVal, ankiVal)
-			// Check if sentence source is there
-			if p.Config.SentenceAudioField != "" && key == p.Config.SentenceSourceCol {
-				diff[p.Config.SentenceAudioField] = "[sentence_audio]"
-			}
+		if targetVal != existingVal {
+			diff[key] = targetVal
 		}
 	}
 

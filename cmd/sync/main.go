@@ -45,14 +45,15 @@ func main() {
 
 	syncPlan := plan.NewSyncPlan(cfg)
 	sheetFetcher.ForEachRecord(func(r sheet.Record) error {
-
+		targetFields := cfg.MapRecord(r)
+		
 		existing, found := ankiData[r[primarySheetCol]]
 		if !found {
 			// Build new note action
-			syncPlan.AddNewNote(r)
+			syncPlan.AddNewNote(targetFields)
 		} else if cfg.ForceSync {
 			// Check if note is different
-			diff := syncPlan.GetDiff(r, existing)
+			diff := plan.Diff(targetFields, existing.Fields)
 			if diff != nil {
 				// Build updated note action
 				syncPlan.AddUpdatedNote(existing.NoteID, diff)
@@ -62,7 +63,9 @@ func main() {
 	})
 
 	if cfg.DryRun {
-		fmt.Println("Dry run mode - not adding notes to Anki")
+		fmt.Printf("- Adding %d notes: %v\n", len(syncPlan.NewNotes), syncPlan.NewNotes)
+		fmt.Printf("- Updating %d notes: %v\n", len(syncPlan.UpdatedNotes), syncPlan.UpdatedNotes)
+		fmt.Println("(Dry run mode - not adding notes to Anki)")
 		return
 	}
 	// Post plan to anki
