@@ -51,6 +51,7 @@ type AudioInfo struct {
 	URL            string   `json:"url"`
 	Filename       string   `json:"filename"`
 	Fields         []string `json:"fields"`
+	SkipHash       string   `json:"skipHash,omitempty"`
 	DeleteExisting bool     `json:"deleteExisting,omitempty"`
 }
 

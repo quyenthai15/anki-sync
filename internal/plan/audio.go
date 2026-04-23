@@ -2,6 +2,7 @@ package plan
 
 import (
 	"anki-sync-go/internal/anki"
+	"crypto/md5"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -35,6 +36,13 @@ func (g *GoogleTTS) GetTts(text string) string {
 	params.Add("client", "tw-ob")
 
 	return fmt.Sprintf("%s?%s", baseURL, params.Encode())
+}
+
+// calculateSkipHash generates MD5 hash of the text content for skipHash
+func calculateSkipHash(text string) string {
+	h := md5.New()
+	h.Write([]byte(text))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 var illegalChars = regexp.MustCompile(`[\\/?%*:|"<>\[\]]`)
@@ -72,6 +80,7 @@ func (p *AudioProcessor) CreateAudioInfo(text string, fields []string) (info ank
 		URL:            p.tts.GetTts(text),
 		Filename:       filename,
 		Fields:         fields,
+		SkipHash:       calculateSkipHash(text), // Use text content for consistent hash
 		DeleteExisting: true,
 	}
 	soundTag = fmt.Sprintf("[sound:%s]", filename)
