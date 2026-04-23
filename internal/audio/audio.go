@@ -1,11 +1,16 @@
 package audio
 
 import (
+	"anki-sync-go/internal/anki"
 	"fmt"
 	"net/url"
 	"regexp"
 	"unicode/utf8"
 )
+
+type TTSProvider interface {
+	GetTts(text string) string
+}
 
 type GoogleTTS struct {
 	Language string
@@ -46,4 +51,28 @@ func SanitizeFilename(name, prefix string) string {
 	}
 
 	return fmt.Sprintf("%s_%s.mp3", prefix, safe)
+}
+
+type AudioProcessor struct {
+	tts    TTSProvider
+	prefix string
+}
+
+func NewAudioProcessor(tts TTSProvider, prefix string) *AudioProcessor {
+	return &AudioProcessor{
+		tts:    tts,
+		prefix: prefix,
+	}
+}
+
+// CreateAudioInfo generates anki.AudioInfo and the corresponding [sound:filename] tag.
+func (p *AudioProcessor) CreateAudioInfo(text string, fields []string) (info anki.AudioInfo, soundTag string) {
+	filename := SanitizeFilename(text, p.prefix)
+	info = anki.AudioInfo{
+		URL:      p.tts.GetTts(text),
+		Filename: filename,
+		Fields:   fields,
+	}
+	soundTag = fmt.Sprintf("[sound:%s]", filename)
+	return info, soundTag
 }

@@ -8,13 +8,8 @@ import (
 )
 
 type Executor struct {
-	ankiClient   AnkiClient
-	config       *config.Config
-	audioBuilder AudioBuilder
-}
-
-type AudioBuilder interface {
-	GetTts(text string) string
+	ankiClient AnkiClient
+	config     *config.Config
 }
 
 type AnkiClient interface {
@@ -22,16 +17,15 @@ type AnkiClient interface {
 	UpdateNotes(notes []any) error
 }
 
-func NewExecutor(client AnkiClient, audio AudioBuilder, cfg *config.Config) *Executor {
+func NewExecutor(client AnkiClient, cfg *config.Config) *Executor {
 	return &Executor{
-		ankiClient:   client,
-		config:       cfg,
-		audioBuilder: audio,
+		ankiClient: client,
+		config:     cfg,
 	}
 }
 
 // Execute performs the actual updates and additions to Anki
-func (e *Executor) Execute(p *plan.SyncPlan) error {
+func (e *Executor) Execute(p *plan.Plan) error {
 	if err := e.ExecuteAdditions(p.NewNotes); err != nil {
 		return fmt.Errorf("failed to execute additions: %w", err)
 	}
@@ -44,6 +38,9 @@ func (e *Executor) Execute(p *plan.SyncPlan) error {
 }
 
 func (e *Executor) ExecuteAdditions(notes []plan.NoteToAdd) error {
+	if len(notes) == 0 {
+		return nil
+	}
 	ankiNotes := make([]anki.NoteToAdd, 0, len(notes))
 	for _, note := range notes {
 		ankiNote, err := e.buildNoteToAdd(note)
@@ -80,12 +77,4 @@ func (e *Executor) buildNoteToAdd(note plan.NoteToAdd) (anki.NoteToAdd, error) {
 	}
 
 	return ankiNote, nil
-}
-
-func (e *Executor) buildNoteToUpdate(note plan.NoteToUpdate) (map[string]any, error) {
-	return map[string]any{
-		"id":     note.NoteID,
-		"fields": note.Fields,
-		"audio":  note.Audio,
-	}, nil
 }

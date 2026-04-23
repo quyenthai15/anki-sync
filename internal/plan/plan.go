@@ -2,7 +2,10 @@ package plan
 
 import (
 	"anki-sync-go/internal/anki"
+	"anki-sync-go/internal/audio"
 	"anki-sync-go/internal/config"
+	"anki-sync-go/internal/sheet"
+	"strings"
 )
 
 // NoteToAdd represents the data needed to create a new note in Anki
@@ -18,27 +21,109 @@ type NoteToUpdate struct {
 	Audio  []anki.AudioInfo
 }
 
-// SyncPlan holds the pending changes identified during the diffing phase
-type SyncPlan struct {
-	Config       *config.Config
+// Plan holds the pending changes identified during the diffing phase
+type Plan struct {
 	NewNotes     []NoteToAdd
 	UpdatedNotes []NoteToUpdate
 }
 
-func NewSyncPlan(cfg *config.Config) *SyncPlan {
-	return &SyncPlan{
-		Config: cfg,
-	}
+func NewPlan() *Plan {
+	return &Plan{}
 }
 
-// AddNewNote adds a new note to the plan. Fields must already be mapped to Anki field names.
-func (p *SyncPlan) AddNewNote(ankiFields map[string]string, audio []anki.AudioInfo) {
+func (p *Plan) AddNewNote(ankiFields map[string]string, audio []anki.AudioInfo) {
 	p.NewNotes = append(p.NewNotes, NoteToAdd{Fields: ankiFields, Audio: audio})
 }
 
-// AddUpdatedNote adds an update to an existing note to the plan
-func (p *SyncPlan) AddUpdatedNote(id int, changedFields map[string]string, audio []anki.AudioInfo) {
+func (p *Plan) AddUpdatedNote(id int, changedFields map[string]string, audio []anki.AudioInfo) {
 	p.UpdatedNotes = append(p.UpdatedNotes, NoteToUpdate{NoteID: id, Fields: changedFields, Audio: audio})
+}
+
+type PlanBuilder struct {
+	config        *config.Config
+	wordAudio     *audio.AudioProcessor
+	sentenceAudio *audio.AudioProcessor
+	existingNotes map[string]anki.NormalizedNote
+	wordCol       string
+	plan          *Plan
+}
+
+func NewPlanBuilder(
+	cfg *config.Config,
+	wordAudio *audio.AudioProcessor,
+	sentenceAudio *audio.AudioProcessor,
+	existingNotes map[string]anki.NormalizedNote,
+	primaryCol string,
+) *PlanBuilder {
+	return &PlanBuilder{
+		config:        cfg,
+		wordAudio:     wordAudio,
+		sentenceAudio: sentenceAudio,
+		existingNotes: existingNotes,
+		wordCol:       primaryCol,
+		plan:          NewPlan(),
+	}
+}
+
+func (b *PlanBuilder) Process(r sheet.Record) error {
+	targetFields := b.config.MapRecord(r)
+	word := r[b.wordCol]
+
+	existing, found := b.existingNotes[word]
+	var audioInfo []anki.AudioInfo
+
+	if !found {
+		// New note - Word Audio
+		if b.config.AudioField != "" && word != "" {
+			info, tag := b.wordAudio.CreateAudioInfo(word, []string{b.config.AudioField})
+			audioInfo = append(audioInfo, info)
+			targetFields[b.config.AudioField] = tag
+		}
+		// New note - Sentence Audio
+		if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
+			sentence := targetFields[b.config.SentenceSourceCol]
+			if sentence != "" {
+				info, tag := b.sentenceAudio.CreateAudioInfo(sentence, []string{b.config.SentenceAudioField})
+				audioInfo = append(audioInfo, info)
+				targetFields[b.config.SentenceAudioField] = tag
+			}
+		}
+		b.plan.AddNewNote(targetFields, audioInfo)
+	} else if b.config.ForceSync {
+		// Update note - Word Audio (if missing)
+		if b.config.AudioField != "" && word != "" {
+			if !hasSound(existing.Fields[b.config.AudioField]) {
+				info, tag := b.wordAudio.CreateAudioInfo(word, []string{b.config.AudioField})
+				audioInfo = append(audioInfo, info)
+				targetFields[b.config.AudioField] = tag
+			}
+		}
+		// Update note - Sentence Audio (if missing or sentence changed)
+		if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
+			sentence := targetFields[b.config.SentenceSourceCol]
+			sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
+
+			if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
+				info, tag := b.sentenceAudio.CreateAudioInfo(sentence, []string{b.config.SentenceAudioField})
+				audioInfo = append(audioInfo, info)
+				targetFields[b.config.SentenceAudioField] = tag
+			}
+		}
+
+		diff := Diff(targetFields, existing.Fields)
+		if diff != nil || len(audioInfo) > 0 {
+			b.plan.AddUpdatedNote(existing.NoteID, diff, audioInfo)
+		}
+	}
+	return nil
+}
+
+func (b *PlanBuilder) GetPlan() *Plan {
+	return b.plan
+}
+
+func hasSound(val string) bool {
+	return strings.Contains(val, "[sound:")
 }
 
 // Diff compares target fields with existing fields.

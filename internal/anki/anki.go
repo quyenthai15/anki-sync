@@ -43,6 +43,9 @@ type NormalizedNote struct {
 	Fields map[string]string `json:"fields"`
 }
 
+// NoteMap is a helper alias for notes indexed by their primary key (usually the word)
+type NoteMap map[string]NormalizedNote
+
 // AudioInfo represents the structured audio data for AnkiConnect
 type AudioInfo struct {
 	URL      string   `json:"url"`
@@ -165,14 +168,14 @@ func GetFieldValue(fields map[string]RawFieldValue, fieldName string) (string, e
 }
 
 // NormalizeAnkiNotes retrieves raw Anki note data and extracts field values
-func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (map[string]NormalizedNote, error) {
+func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (notesByWord NoteMap, err error) {
 	notes, err := client.GetNotes(deckName)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(notes) == 0 {
-		return make(map[string]NormalizedNote), nil
+		return make(NoteMap), nil
 	}
 
 	notesInfo, err := client.GetNotesInfo(notes)
@@ -180,7 +183,7 @@ func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (map[s
 		return nil, err
 	}
 
-	notesByWord := make(map[string]NormalizedNote, len(notesInfo))
+	notesByWord = make(NoteMap, len(notesInfo))
 	for _, note := range notesInfo {
 		// Extract the key field value
 		keyValue, err := GetFieldValue(note.Fields, keyField)
