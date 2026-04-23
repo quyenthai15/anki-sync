@@ -48,9 +48,10 @@ type NoteMap map[string]NormalizedNote
 
 // AudioInfo represents the structured audio data for AnkiConnect
 type AudioInfo struct {
-	URL      string   `json:"url"`
-	Filename string   `json:"filename"`
-	Fields   []string `json:"fields"`
+	URL            string   `json:"url"`
+	Filename       string   `json:"filename"`
+	Fields         []string `json:"fields"`
+	DeleteExisting bool     `json:"deleteExisting,omitempty"`
 }
 
 // NoteToAdd represents an Anki note with proper field structure

@@ -69,9 +69,10 @@ func NewAudioProcessor(tts TTSProvider, prefix string) *AudioProcessor {
 func (p *AudioProcessor) CreateAudioInfo(text string, fields []string) (info anki.AudioInfo, soundTag string) {
 	filename := SanitizeFilename(text, p.prefix)
 	info = anki.AudioInfo{
-		URL:      p.tts.GetTts(text),
-		Filename: filename,
-		Fields:   fields,
+		URL:            p.tts.GetTts(text),
+		Filename:       filename,
+		Fields:         fields,
+		DeleteExisting: true,
 	}
 	soundTag = fmt.Sprintf("[sound:%s]", filename)
 	return info, soundTag
