@@ -7,7 +7,6 @@ import (
 	"anki-sync-go/internal/sheet"
 	"anki-sync-go/internal/syncer"
 	"flag"
-	"fmt"
 	"log"
 )
 
@@ -35,7 +34,6 @@ func main() {
 		if err := syncSvc.Validate(); err != nil {
 			log.Fatalf("Validation failed: %v", err)
 		}
-		fmt.Println("✅ Configuration verified!")
 	}
 
 	if err := syncSvc.Run(); err != nil {

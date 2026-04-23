@@ -212,3 +212,9 @@ func (c *Client) AddNotes(notes []NoteToAdd) ([]int, error) {
 	params := map[string]any{"notes": notes}
 	return invoke[[]int](c, "addNotes", params)
 }
+
+func (c *Client) UpdateNotes(actions []any) error {
+	params := map[string]any{"actions": actions}
+	_, err := invoke[[]any](c, "multi", params) // TODO: handle multi response
+	return err
+}

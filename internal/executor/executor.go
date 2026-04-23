@@ -56,10 +56,35 @@ func (e *Executor) ExecuteAdditions(notes []plan.NoteToAdd) error {
 }
 
 func (e *Executor) ExecuteUpdates(notes []plan.NoteToUpdate) error {
+	if len(notes) == 0 {
+		return nil
+	}
+	var actions []any
 	for _, note := range notes {
-		// TODO: Implement actual AnkiConnect call in internal/anki/anki.go
-		// and use it here.
-		fmt.Printf("Updating note %d: %v\n", note.NoteID, note.Fields)
+		// Update note fields and audio
+		// To add audio to an existing note, we can use 'updateNoteFields'
+		// if the audio tag is already in the field value. [sound:ja_word_tts_ほんとに.mp3]
+		// Ensure fields is not nil for AnkiConnect
+		fields := note.Fields
+		if fields == nil {
+			fields = make(map[string]string)
+		}
+
+		action := map[string]any{
+			"action": "updateNoteFields",
+			"params": map[string]any{
+				"note": map[string]any{
+					"id":     note.NoteID,
+					"fields": fields,
+					"audio":  note.Audio,
+				},
+			},
+		}
+		actions = append(actions, action)
+	}
+
+	if len(actions) > 0 {
+		return e.ankiClient.UpdateNotes(actions)
 	}
 	return nil
 }
