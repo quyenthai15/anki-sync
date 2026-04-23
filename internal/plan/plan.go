@@ -70,52 +70,87 @@ func (b *PlanBuilder) Process(r sheet.Record) error {
 	word := r[b.wordCol]
 
 	existing, found := b.existingNotes[word]
+	if !found {
+		return b.processNewNote(word, targetFields)
+	}
+
+	return b.processUpdateNote(word, targetFields, existing)
+}
+
+func (b *PlanBuilder) processNewNote(word string, fields map[string]string) error {
 	var audioInfo []anki.AudioInfo
 
-	if !found {
-		// New note - Word Audio
-		if b.config.AudioField != "" && word != "" {
-			info, tag := b.wordAudio.CreateAudioInfo(word, []string{b.config.AudioField})
+	if info, tag, ok := b.createWordAudio(word); ok {
+		audioInfo = append(audioInfo, info)
+		fields[b.config.AudioField] = tag
+	}
+
+	sentence := fields[b.config.SentenceSourceCol]
+	if info, tag, ok := b.createSentenceAudio(sentence); ok {
+		audioInfo = append(audioInfo, info)
+		fields[b.config.SentenceAudioField] = tag
+	}
+
+	b.plan.AddNewNote(fields, audioInfo)
+	return nil
+}
+
+func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, existing anki.NormalizedNote) error {
+	if !b.config.ForceSync {
+		return nil
+	}
+
+	var audioInfo []anki.AudioInfo
+
+	// Handle Word Audio - only if missing
+	if b.config.AudioField != "" && !hasSound(existing.Fields[b.config.AudioField]) {
+		if info, tag, ok := b.createWordAudio(word); ok {
 			audioInfo = append(audioInfo, info)
-			targetFields[b.config.AudioField] = tag
-		}
-		// New note - Sentence Audio
-		if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
-			sentence := targetFields[b.config.SentenceSourceCol]
-			if sentence != "" {
-				info, tag := b.sentenceAudio.CreateAudioInfo(sentence, []string{b.config.SentenceAudioField})
-				audioInfo = append(audioInfo, info)
-				targetFields[b.config.SentenceAudioField] = tag
-			}
-		}
-		b.plan.AddNewNote(targetFields, audioInfo)
-	} else if b.config.ForceSync {
-		// Update note - Word Audio (if missing)
-		if b.config.AudioField != "" && word != "" {
-			if !hasSound(existing.Fields[b.config.AudioField]) {
-				info, tag := b.wordAudio.CreateAudioInfo(word, []string{b.config.AudioField})
-				audioInfo = append(audioInfo, info)
-				targetFields[b.config.AudioField] = tag
-			}
-		}
-		// Update note - Sentence Audio (if missing or sentence changed)
-		if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
-			sentence := targetFields[b.config.SentenceSourceCol]
-			sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
-
-			if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
-				info, tag := b.sentenceAudio.CreateAudioInfo(sentence, []string{b.config.SentenceAudioField})
-				audioInfo = append(audioInfo, info)
-				targetFields[b.config.SentenceAudioField] = tag
-			}
-		}
-
-		diff := Diff(targetFields, existing.Fields)
-		if diff != nil || len(audioInfo) > 0 {
-			b.plan.AddUpdatedNote(existing.NoteID, diff, audioInfo)
+			fields[b.config.AudioField] = tag
 		}
 	}
+
+	// Handle Sentence Audio - if missing or sentence changed
+	if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
+		sentence := fields[b.config.SentenceSourceCol]
+
+		sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
+
+		if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
+			if info, tag, ok := b.createSentenceAudio(sentence); ok {
+				audioInfo = append(audioInfo, info)
+				fields[b.config.SentenceAudioField] = tag
+			}
+		}
+	}
+
+	diff := Diff(fields, existing.Fields)
+	if diff != nil || len(audioInfo) > 0 {
+		b.plan.AddUpdatedNote(existing.NoteID, diff, audioInfo)
+	}
+
 	return nil
+}
+
+func (b *PlanBuilder) createWordAudio(word string) (info anki.AudioInfo, tag string, ok bool) {
+	if b.config.AudioField == "" || word == "" {
+		return anki.AudioInfo{}, "", false
+	}
+	info, tag = b.wordAudio.CreateAudioInfo(word, []string{b.config.AudioField})
+	ok = true
+	return
+}
+
+func (b *PlanBuilder) createSentenceAudio(sentence string) (info anki.AudioInfo, tag string, ok bool) {
+	if b.config.SentenceAudioField == "" || b.config.SentenceSourceCol == "" {
+		return anki.AudioInfo{}, "", false
+	}
+	if sentence == "" {
+		return anki.AudioInfo{}, "", false
+	}
+	info, tag = b.sentenceAudio.CreateAudioInfo(sentence, []string{b.config.SentenceAudioField})
+	ok = true
+	return
 }
 
 func (b *PlanBuilder) GetPlan() *Plan {
