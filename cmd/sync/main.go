@@ -2,6 +2,7 @@ package main
 
 import (
 	"anki-sync-go/internal/anki"
+	"anki-sync-go/internal/audio"
 	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/executor"
 	"anki-sync-go/internal/plan"
@@ -9,10 +10,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 )
 
 type SheetFetcher interface {
 	ForEachRecord(callback func(sheet.Record) error) error
+}
+
+func hasSound(val string) bool {
+	return strings.Contains(val, "[sound:")
 }
 
 func main() {
@@ -31,6 +37,7 @@ func main() {
 	// Fetch sheet records & anki notes to compare get diff
 	ankiClient := anki.NewClient()
 	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
+	audioBuilder := audio.NewGoogleTTS("ja")
 
 	primarySheetCol, err := sheetFetcher.GetFirstColumnName()
 	if err != nil {
@@ -46,30 +53,81 @@ func main() {
 	syncPlan := plan.NewSyncPlan(cfg)
 	sheetFetcher.ForEachRecord(func(r sheet.Record) error {
 		targetFields := cfg.MapRecord(r)
-		
-		existing, found := ankiData[r[primarySheetCol]]
+		word := r[primarySheetCol]
+
+		existing, found := ankiData[word]
+		var audioInfo []anki.AudioInfo
+
 		if !found {
-			// Build new note action
-			syncPlan.AddNewNote(targetFields)
+			// New note - Word Audio
+			if cfg.AudioField != "" && word != "" {
+				filename := audio.SanitizeFilename(word, "ja_word_tts")
+				audioInfo = append(audioInfo, anki.AudioInfo{
+					URL:      audioBuilder.GetTts(word),
+					Filename: filename,
+					Fields:   []string{cfg.AudioField},
+				})
+				targetFields[cfg.AudioField] = fmt.Sprintf("[sound:%s]", filename)
+			}
+			// New note - Sentence Audio
+			if cfg.SentenceAudioField != "" && cfg.SentenceSourceCol != "" {
+				sentence := targetFields[cfg.SentenceSourceCol]
+				if sentence != "" {
+					filename := audio.SanitizeFilename(sentence, "ja_sent_tts")
+					audioInfo = append(audioInfo, anki.AudioInfo{
+						URL:      audioBuilder.GetTts(sentence),
+						Filename: filename,
+						Fields:   []string{cfg.SentenceAudioField},
+					})
+					targetFields[cfg.SentenceAudioField] = fmt.Sprintf("[sound:%s]", filename)
+				}
+			}
+			syncPlan.AddNewNote(targetFields, audioInfo)
 		} else if cfg.ForceSync {
-			// Check if note is different
+			// Update note - Word Audio (if missing)
+			if cfg.AudioField != "" && word != "" {
+				if !hasSound(existing.Fields[cfg.AudioField]) {
+					filename := audio.SanitizeFilename(word, "ja_word_tts")
+					audioInfo = append(audioInfo, anki.AudioInfo{
+						URL:      audioBuilder.GetTts(word),
+						Filename: filename,
+						Fields:   []string{cfg.AudioField},
+					})
+					targetFields[cfg.AudioField] = fmt.Sprintf("[sound:%s]", filename)
+				}
+			}
+			// Update note - Sentence Audio (if missing or sentence changed)
+			if cfg.SentenceAudioField != "" && cfg.SentenceSourceCol != "" {
+				sentence := targetFields[cfg.SentenceSourceCol]
+				sentenceChanged := existing.Fields[cfg.SentenceSourceCol] != sentence
+
+				if sentence != "" && (!hasSound(existing.Fields[cfg.SentenceAudioField]) || sentenceChanged) {
+					filename := audio.SanitizeFilename(sentence, "ja_sent_tts")
+					audioInfo = append(audioInfo, anki.AudioInfo{
+						URL:      audioBuilder.GetTts(sentence),
+						Filename: filename,
+						Fields:   []string{cfg.SentenceAudioField},
+					})
+					targetFields[cfg.SentenceAudioField] = fmt.Sprintf("[sound:%s]", filename)
+				}
+			}
+
 			diff := plan.Diff(targetFields, existing.Fields)
-			if diff != nil {
-				// Build updated note action
-				syncPlan.AddUpdatedNote(existing.NoteID, diff)
+			if diff != nil || len(audioInfo) > 0 {
+				syncPlan.AddUpdatedNote(existing.NoteID, diff, audioInfo)
 			}
 		}
 		return nil
 	})
 
 	if cfg.DryRun {
-		fmt.Printf("- Adding %d notes: %v\n", len(syncPlan.NewNotes), syncPlan.NewNotes)
-		fmt.Printf("- Updating %d notes: %v\n", len(syncPlan.UpdatedNotes), syncPlan.UpdatedNotes)
+		fmt.Printf("- Adding %d notes: %+v\n", len(syncPlan.NewNotes), syncPlan.NewNotes)
+		fmt.Printf("- Updating %d notes: %+v\n", len(syncPlan.UpdatedNotes), syncPlan.UpdatedNotes)
 		fmt.Println("(Dry run mode - not adding notes to Anki)")
 		return
 	}
 	// Post plan to anki
-	executor := executor.NewExecutor(ankiClient)
+	executor := executor.NewExecutor(ankiClient, audioBuilder, cfg)
 	if len(syncPlan.NewNotes) > 0 {
 		if err := executor.ExecuteAdditions(syncPlan.NewNotes); err != nil {
 			log.Fatalf("Failed to execute additions: %v", err)

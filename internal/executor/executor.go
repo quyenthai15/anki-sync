@@ -2,17 +2,31 @@ package executor
 
 import (
 	"anki-sync-go/internal/anki"
+	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/plan"
 	"fmt"
 )
 
 type Executor struct {
-	ankiClient *anki.Client
+	ankiClient   AnkiClient
+	config       *config.Config
+	audioBuilder AudioBuilder
 }
 
-func NewExecutor(client *anki.Client) *Executor {
+type AudioBuilder interface {
+	GetTts(text string) string
+}
+
+type AnkiClient interface {
+	AddNotes(notes []anki.NoteToAdd) ([]int, error)
+	UpdateNotes(notes []any) error
+}
+
+func NewExecutor(client AnkiClient, audio AudioBuilder, cfg *config.Config) *Executor {
 	return &Executor{
-		ankiClient: client,
+		ankiClient:   client,
+		config:       cfg,
+		audioBuilder: audio,
 	}
 }
 
@@ -30,10 +44,16 @@ func (e *Executor) Execute(p *plan.SyncPlan) error {
 }
 
 func (e *Executor) ExecuteAdditions(notes []plan.NoteToAdd) error {
+	ankiNotes := make([]anki.NoteToAdd, 0, len(notes))
 	for _, note := range notes {
-		// TODO: Implement actual AnkiConnect call in internal/anki/anki.go
-		// and use it here. For now, we just log the intent.
-		fmt.Printf("Adding note: %v\n", note.Fields)
+		ankiNote, err := e.buildNoteToAdd(note)
+		if err != nil {
+			return fmt.Errorf("fail to build new note %w", err)
+		}
+		ankiNotes = append(ankiNotes, ankiNote)
+	}
+	if _, err := e.ankiClient.AddNotes(ankiNotes); err != nil {
+		return fmt.Errorf("fail to add new notes to anki %w", err)
 	}
 	return nil
 }
@@ -45,4 +65,27 @@ func (e *Executor) ExecuteUpdates(notes []plan.NoteToUpdate) error {
 		fmt.Printf("Updating note %d: %v\n", note.NoteID, note.Fields)
 	}
 	return nil
+}
+
+func (e *Executor) buildNoteToAdd(note plan.NoteToAdd) (anki.NoteToAdd, error) {
+	ankiNote := anki.NoteToAdd{
+		DeckName:  e.config.AnkiDeck,
+		ModelName: e.config.AnkiModel,
+		Audio:     note.Audio,
+		Fields:    note.Fields,
+		Tags:      []string{"csv-sync"},
+		Options: map[string]any{
+			"allowDuplicate": false,
+		},
+	}
+
+	return ankiNote, nil
+}
+
+func (e *Executor) buildNoteToUpdate(note plan.NoteToUpdate) (map[string]any, error) {
+	return map[string]any{
+		"id":     note.NoteID,
+		"fields": note.Fields,
+		"audio":  note.Audio,
+	}, nil
 }

@@ -43,12 +43,19 @@ type NormalizedNote struct {
 	Fields map[string]string `json:"fields"`
 }
 
-// Note represents an Anki note with proper field structure
+// AudioInfo represents the structured audio data for AnkiConnect
+type AudioInfo struct {
+	URL      string   `json:"url"`
+	Filename string   `json:"filename"`
+	Fields   []string `json:"fields"`
+}
+
+// NoteToAdd represents an Anki note with proper field structure
 type NoteToAdd struct {
 	DeckName  string            `json:"deckName"`
 	ModelName string            `json:"modelName"`
-	Audio     string            `json:"audio"`
 	Fields    map[string]string `json:"fields"`
+	Audio     []AudioInfo       `json:"audio,omitempty"`
 	Tags      []string          `json:"tags"`
 	Options   map[string]any    `json:"options"`
 }
