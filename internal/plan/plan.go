@@ -2,7 +2,6 @@ package plan
 
 import (
 	"anki-sync-go/internal/anki"
-	"anki-sync-go/internal/audio"
 	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/sheet"
 	"strings"
@@ -41,8 +40,8 @@ func (p *Plan) AddUpdatedNote(id int, changedFields map[string]string, audio []a
 
 type PlanBuilder struct {
 	config        *config.Config
-	wordAudio     *audio.AudioProcessor
-	sentenceAudio *audio.AudioProcessor
+	wordAudio     *AudioProcessor
+	sentenceAudio *AudioProcessor
 	existingNotes map[string]anki.NormalizedNote
 	wordCol       string
 	plan          *Plan
@@ -50,11 +49,12 @@ type PlanBuilder struct {
 
 func NewPlanBuilder(
 	cfg *config.Config,
-	wordAudio *audio.AudioProcessor,
-	sentenceAudio *audio.AudioProcessor,
+	tts TTSProvider,
 	existingNotes map[string]anki.NormalizedNote,
 	primaryCol string,
 ) *PlanBuilder {
+	wordAudio := NewAudioProcessor(tts, "ja_word_tts")
+	sentenceAudio := NewAudioProcessor(tts, "ja_sent_tts")
 	return &PlanBuilder{
 		config:        cfg,
 		wordAudio:     wordAudio,
@@ -103,7 +103,7 @@ func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, e
 	var audioInfo []anki.AudioInfo
 
 	// Handle Word Audio - only if missing
-	if b.config.AudioField != "" && !hasSound(existing.Fields[b.config.AudioField]) {
+	if !hasSound(existing.Fields[b.config.AudioField]) {
 		if info, tag, ok := b.createWordAudio(word); ok {
 			audioInfo = append(audioInfo, info)
 			fields[b.config.AudioField] = tag
@@ -111,16 +111,12 @@ func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, e
 	}
 
 	// Handle Sentence Audio - if missing or sentence changed
-	if b.config.SentenceAudioField != "" && b.config.SentenceSourceCol != "" {
-		sentence := fields[b.config.SentenceSourceCol]
-
-		sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
-
-		if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
-			if info, tag, ok := b.createSentenceAudio(sentence); ok {
-				audioInfo = append(audioInfo, info)
-				fields[b.config.SentenceAudioField] = tag
-			}
+	sentence := fields[b.config.SentenceSourceCol]
+	sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
+	if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
+		if info, tag, ok := b.createSentenceAudio(sentence); ok {
+			audioInfo = append(audioInfo, info)
+			fields[b.config.SentenceAudioField] = tag
 		}
 	}
 

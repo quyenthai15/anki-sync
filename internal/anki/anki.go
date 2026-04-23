@@ -167,24 +167,27 @@ func GetFieldValue(fields map[string]RawFieldValue, fieldName string) (string, e
 	return field.StringValue(), nil
 }
 
-// NormalizeAnkiNotes retrieves raw Anki note data and extracts field values
-func NormalizeAnkiNotes(client *Client, deckName string, keyField string) (notesByWord NoteMap, err error) {
-	notes, err := client.GetNotes(deckName)
+func (c *Client) GetNotesFromDeck(deckName string) ([]RawNote, error) {
+	notes, err := c.GetNotes(deckName)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(notes) == 0 {
+	notesInfo, err := c.GetNotesInfo(notes)
+	if err != nil {
+		return nil, err
+	}
+	return notesInfo, nil
+}
+
+// NormalizeAnkiNotes transforms raw Anki note data and extracts field values
+func NormalizeAnkiNotes(rawNotes []RawNote, keyField string) (notesByWord NoteMap, err error) {
+	if len(rawNotes) == 0 {
 		return make(NoteMap), nil
 	}
 
-	notesInfo, err := client.GetNotesInfo(notes)
-	if err != nil {
-		return nil, err
-	}
-
-	notesByWord = make(NoteMap, len(notesInfo))
-	for _, note := range notesInfo {
+	notesByWord = make(NoteMap, len(rawNotes))
+	for _, note := range rawNotes {
 		// Extract the key field value
 		keyValue, err := GetFieldValue(note.Fields, keyField)
 		if err != nil {

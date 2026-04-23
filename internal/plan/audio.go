@@ -1,4 +1,4 @@
-package audio
+package plan
 
 import (
 	"anki-sync-go/internal/anki"
