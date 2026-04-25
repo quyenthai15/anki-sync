@@ -70,26 +70,15 @@ func (s *Syncer) Run() error {
 	fmt.Printf("Fetched sheet headers in %v\n", time.Since(stepStart).Round(time.Millisecond))
 
 	// Step 2: Fetch notes from Anki
-	stepStart = time.Now()
-	rawNotes, err := s.ankiClient.GetNotesFromDeck(s.cfg.AnkiDeck)
+	ankiData, err := s.getAnkiData(wordCol)
 	if err != nil {
 		return fmt.Errorf("failed to get anki notes from deck %s ", s.cfg.AnkiDeck)
 	}
-	ankiData, err := anki.NormalizeAnkiNotes(rawNotes, wordCol)
-	if err != nil {
-		return fmt.Errorf("failed to get anki notes detail: %w", err)
-	}
-	fmt.Printf("Fetched %d notes from Anki in %v\n", len(ankiData), time.Since(stepStart).Round(time.Millisecond))
-
 	// Step 3: Build sync plan
-	stepStart = time.Now()
-	builder := plan.NewPlanBuilder(s.cfg, s.tts, ankiData, wordCol)
-	err = s.sheetFetcher.ForEachRecord(builder.Process)
+	syncPlan, err := s.createPlan(ankiData, wordCol)
 	if err != nil {
 		return fmt.Errorf("failed to build sync plan: %w", err)
 	}
-	syncPlan := builder.GetPlan()
-	fmt.Printf("Built sync plan (%d new, %d updates) in %v\n", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes), time.Since(stepStart).Round(time.Millisecond))
 
 	if s.cfg.DryRun {
 		fmt.Printf("- Adding %d notes: %+v\n", len(syncPlan.NewNotes), syncPlan.NewNotes)
@@ -99,13 +88,46 @@ func (s *Syncer) Run() error {
 	}
 
 	// Step 4: Execute sync
-	stepStart = time.Now()
-	exec := executor.NewExecutor(s.ankiClient, s.cfg)
-	if err := exec.Execute(syncPlan); err != nil {
+	if err := s.executePlan(syncPlan); err != nil {
 		return fmt.Errorf("failed to execute sync: %w", err)
+
 	}
-	fmt.Printf("Executed sync in %v\n", time.Since(stepStart).Round(time.Millisecond))
 
 	fmt.Printf("Synced %d new notes and %d updated notes in %v\n", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))
+	return nil
+}
+
+func (s *Syncer) getAnkiData(wordCol string) (anki.NoteMap, error) {
+	start := time.Now()
+	rawNotes, err := s.ankiClient.GetNotesFromDeck(s.cfg.AnkiDeck)
+	if err != nil {
+		return nil, err
+	}
+	ankiData, err := anki.NormalizeAnkiNotes(rawNotes, wordCol)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Fetched %d notes from Anki in %v\n", len(ankiData), time.Since(start).Round(time.Millisecond))
+	return ankiData, nil
+}
+
+func (s *Syncer) createPlan(ankiData anki.NoteMap, wordCol string) (*plan.Plan, error) {
+	start := time.Now()
+	builder := plan.NewPlanBuilder(s.cfg, s.tts, ankiData, wordCol)
+	if err := s.sheetFetcher.ForEachRecord(builder.Process); err != nil {
+		return nil, err
+	}
+	builtPlan := builder.GetPlan()
+	fmt.Printf("Built plan (%d new, %d updates) in %v\n", len(builtPlan.NewNotes), len(builtPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))
+	return builtPlan, nil
+}
+
+func (s *Syncer) executePlan(p *plan.Plan) error {
+	start := time.Now()
+	exec := executor.NewExecutor(s.ankiClient, s.cfg)
+	if err := exec.Execute(p); err != nil {
+		return err
+	}
+	fmt.Printf("Executed sync in %v\n", time.Since(start).Round(time.Millisecond))
 	return nil
 }

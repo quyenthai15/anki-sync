@@ -116,7 +116,7 @@ func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, e
 		}
 	}
 
-	diff := Diff(fields, existing.Fields)
+	diff := getDiff(fields, existing.Fields)
 	if diff != nil || len(audios) > 0 {
 		b.plan.AddUpdatedNote(existing.NoteID, diff, audios)
 	}
@@ -155,7 +155,7 @@ func hasSound(val string) bool {
 
 // Diff compares target fields with existing fields.
 // It returns a map of fields that need updating, or nil if they are identical.
-func Diff(target, existing map[string]string) map[string]string {
+func getDiff(target, existing map[string]string) map[string]string {
 	diff := make(map[string]string)
 	for key, targetVal := range target {
 		existingVal, exists := existing[key]
