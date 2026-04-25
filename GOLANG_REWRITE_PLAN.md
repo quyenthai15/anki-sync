@@ -33,10 +33,20 @@
 - **Interactive confirmations**: Prompt before destructive operations in non-dry-run mode
 
 ### 2. Batch Processing & Concurrency
-- **Parallel Anki data fetching**: Replace sequential `notesInfo` calls with concurrent goroutines
-- **Concurrent audio downloads**: Separate media storage from field updates using worker pools
-- **Bounded concurrency**: Use semaphores to limit concurrent AnkiConnect requests (max 5)
-- **Error handling**: Implement `errgroup` for clean error propagation across goroutines
+- **Parallel Anki data fetching**: Replace sequential `notesInfo` calls with concurrent goroutines.
+- **Concurrent audio downloads**: Separate media storage from field updates using worker pools.
+- **Bounded concurrency**: Use semaphores (buffered channels) to limit concurrent AnkiConnect requests.
+- **Error handling**: Implement error collection using channels or `sync.Mutex` for clean error propagation.
+
+**Implementation Hints:**
+- **Batching**: Use `s[i:min(i+batchSize, len(s))]` to process slices in chunks.
+- **Goroutines**: Remember to pass loop variables as arguments to avoid closure captures.
+- **Semaphores**: Use a buffered channel `make(chan struct{}, N)` to limit concurrent tasks.
+
+**Helpful Resources:**
+- [Go by Example: WaitGroups](https://gobyexample.com/waitgroups)
+- [Go by Example: Worker Pools](https://gobyexample.com/worker-pools)
+- [A Tour of Go: Concurrency](https://go.dev/tour/concurrency/1)
 
 ### 3. Record Management Features
 - **Count limit flag**: `-n` flag to process only N records (useful for testing)
@@ -60,6 +70,9 @@
 
 #### User Experience
 - **Diff preview**: Enhance to show detailed changes before execution
+
+#### Distribution
+- Compile win / mac binaries for others to run
 
 ---
 
