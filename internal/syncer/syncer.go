@@ -11,13 +11,13 @@ import (
 )
 
 type Syncer struct {
-	cfg          *config.Config
+	cfg          config.Config
 	ankiClient   *anki.Client
 	sheetFetcher *sheet.Fetcher
 	tts          plan.TTSProvider
 }
 
-func NewSyncer(cfg *config.Config, ankiClient *anki.Client, sheetFetcher *sheet.Fetcher, tts plan.TTSProvider) *Syncer {
+func NewSyncer(cfg config.Config, ankiClient *anki.Client, sheetFetcher *sheet.Fetcher, tts plan.TTSProvider) *Syncer {
 	return &Syncer{
 		cfg:          cfg,
 		ankiClient:   ankiClient,
@@ -111,18 +111,18 @@ func (s *Syncer) getAnkiData(wordCol string) (anki.NoteMap, error) {
 	return ankiData, nil
 }
 
-func (s *Syncer) createPlan(ankiData anki.NoteMap, wordCol string) (*plan.Plan, error) {
+func (s *Syncer) createPlan(ankiData anki.NoteMap, wordCol string) (plan.Plan, error) {
 	start := time.Now()
 	builder := plan.NewPlanBuilder(s.cfg, s.tts, ankiData, wordCol)
 	if err := s.sheetFetcher.ForEachRecord(builder.Process); err != nil {
-		return nil, err
+		return plan.Plan{}, err
 	}
 	builtPlan := builder.GetPlan()
 	fmt.Printf("Built plan (%d new, %d updates) in %v\n", len(builtPlan.NewNotes), len(builtPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))
 	return builtPlan, nil
 }
 
-func (s *Syncer) executePlan(p *plan.Plan) error {
+func (s *Syncer) executePlan(p plan.Plan) error {
 	start := time.Now()
 	exec := executor.NewExecutor(s.ankiClient, s.cfg)
 	if err := exec.Execute(p); err != nil {

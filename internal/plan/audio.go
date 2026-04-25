@@ -17,14 +17,14 @@ type GoogleTTS struct {
 	Language string
 }
 
-func NewGoogleTTS(lang string) *GoogleTTS {
+func NewGoogleTTS(lang string) GoogleTTS {
 	if lang == "" {
 		lang = "ja" // Default to Japanese
 	}
-	return &GoogleTTS{Language: lang}
+	return GoogleTTS{Language: lang}
 }
 
-func (g *GoogleTTS) GetTts(text string) string {
+func (g GoogleTTS) GetTts(text string) string {
 	if text == "" {
 		return ""
 	}
@@ -66,15 +66,15 @@ type AudioProcessor struct {
 	prefix string
 }
 
-func NewAudioProcessor(tts TTSProvider, prefix string) *AudioProcessor {
-	return &AudioProcessor{
+func NewAudioProcessor(tts TTSProvider, prefix string) AudioProcessor {
+	return AudioProcessor{
 		tts:    tts,
 		prefix: prefix,
 	}
 }
 
 // CreateAudioInfo generates anki.AudioInfo and the corresponding [sound:filename] tag.
-func (p *AudioProcessor) CreateAudioInfo(text string, fields []string) (info anki.AudioInfo, soundTag string) {
+func (p AudioProcessor) CreateAudioInfo(text string, fields []string) (info anki.AudioInfo, soundTag string) {
 	filename := SanitizeFilename(text, p.prefix)
 	info = anki.AudioInfo{
 		URL:            p.tts.GetTts(text),

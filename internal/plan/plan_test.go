@@ -8,7 +8,7 @@ import (
 )
 
 func TestPlanBuilder_Process_Duplicates(t *testing.T) {
-	cfg := &config.Config{
+	cfg := config.Config{
 		AnkiDeck:           "Deck",
 		AnkiModel:          "Model",
 		Mapping:            config.FieldMapping{"Word": "Expression", "Meaning": "Meaning", "Sentence": "Sentence"},

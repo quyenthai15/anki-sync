@@ -9,7 +9,7 @@ import (
 
 type Executor struct {
 	ankiClient AnkiClient
-	config     *config.Config
+	config     config.Config
 }
 
 type AnkiClient interface {
@@ -17,7 +17,7 @@ type AnkiClient interface {
 	UpdateNotes(notes []any) error
 }
 
-func NewExecutor(client AnkiClient, cfg *config.Config) *Executor {
+func NewExecutor(client AnkiClient, cfg config.Config) *Executor {
 	return &Executor{
 		ankiClient: client,
 		config:     cfg,
@@ -25,7 +25,7 @@ func NewExecutor(client AnkiClient, cfg *config.Config) *Executor {
 }
 
 // Execute performs the actual updates and additions to Anki
-func (e *Executor) Execute(p *plan.Plan) error {
+func (e *Executor) Execute(p plan.Plan) error {
 	if err := e.ExecuteAdditions(p.NewNotes); err != nil {
 		return fmt.Errorf("failed to execute additions: %w", err)
 	}

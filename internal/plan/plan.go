@@ -26,8 +26,8 @@ type Plan struct {
 	UpdatedNotes []NoteToUpdate
 }
 
-func NewPlan() *Plan {
-	return &Plan{}
+func NewPlan() Plan {
+	return Plan{}
 }
 
 func (p *Plan) AddNewNote(ankiFields map[string]string, audio []anki.AudioInfo) {
@@ -39,16 +39,16 @@ func (p *Plan) AddUpdatedNote(id int, changedFields map[string]string, audio []a
 }
 
 type PlanBuilder struct {
-	config        *config.Config
-	wordAudio     *AudioProcessor
-	sentenceAudio *AudioProcessor
+	config        config.Config
+	wordAudio     AudioProcessor
+	sentenceAudio AudioProcessor
 	existingNotes map[string]anki.NormalizedNote
 	wordCol       string
-	plan          *Plan
+	plan          Plan
 }
 
 func NewPlanBuilder(
-	cfg *config.Config,
+	cfg config.Config,
 	tts TTSProvider,
 	existingNotes map[string]anki.NormalizedNote,
 	primaryCol string,
@@ -145,7 +145,7 @@ func (b *PlanBuilder) createSentenceAudio(sentence string) (info anki.AudioInfo,
 	return
 }
 
-func (b *PlanBuilder) GetPlan() *Plan {
+func (b *PlanBuilder) GetPlan() Plan {
 	return b.plan
 }
 

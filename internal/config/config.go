@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // Validate checks if the local configuration fields are present.
-func (c *Config) Validate() error {
+func (c Config) Validate() error {
 	if c.SheetCSVURL == "" {
 		return fmt.Errorf("sheet CSV URL is required")
 	}
@@ -55,7 +55,7 @@ func (c *Config) Validate() error {
 }
 
 // ValidateWithAnki checks if the configured deck, model, and fields exist in Anki.
-func (c *Config) ValidateWithAnki(anki AnkiProvider) error {
+func (c Config) ValidateWithAnki(anki AnkiProvider) error {
 	// Check Deck
 	decks, err := anki.GetDeckNames()
 	if err != nil {
@@ -88,7 +88,7 @@ func (c *Config) ValidateWithAnki(anki AnkiProvider) error {
 }
 
 // ValidateWithSheet checks if the mapping keys exist as columns.
-func (c *Config) ValidateWithSheet(headers []string) error {
+func (c Config) ValidateWithSheet(headers []string) error {
 	for sheetCol := range c.Mapping {
 		if !slices.Contains(headers, sheetCol) {
 			return fmt.Errorf("column '%s' not found in Google Sheet", sheetCol)
@@ -97,7 +97,7 @@ func (c *Config) ValidateWithSheet(headers []string) error {
 	return nil
 }
 
-func (c *Config) String() string {
+func (c Config) String() string {
 	return fmt.Sprintf(`Config{
 		SheetCSVURL: %s,
 		AnkiDeck: %s,
@@ -110,7 +110,7 @@ func (c *Config) String() string {
 }
 
 // MapRecord converts a sheet record into Anki fields using the configured mapping
-func (c *Config) MapRecord(rec map[string]string) map[string]string {
+func (c Config) MapRecord(rec map[string]string) map[string]string {
 	fields := make(map[string]string)
 	for sheetCol, ankiField := range c.Mapping {
 		if val, ok := rec[sheetCol]; ok {
@@ -121,14 +121,14 @@ func (c *Config) MapRecord(rec map[string]string) map[string]string {
 	return fields
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return Config{}, err
 	}
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
+		return Config{}, err
 	}
-	return &config, nil
+	return config, nil
 }
