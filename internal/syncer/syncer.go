@@ -6,6 +6,7 @@ import (
 	"anki-sync-go/internal/executor"
 	"anki-sync-go/internal/plan"
 	"anki-sync-go/internal/sheet"
+	"anki-sync-go/internal/status"
 	"fmt"
 	"time"
 )
@@ -15,32 +16,40 @@ type Syncer struct {
 	ankiClient   *anki.Client
 	sheetFetcher *sheet.Fetcher
 	tts          plan.TTSProvider
+	reporter     status.Reporter
 }
 
-func NewSyncer(cfg config.Config, ankiClient *anki.Client, sheetFetcher *sheet.Fetcher, tts plan.TTSProvider) *Syncer {
+func NewSyncer(cfg config.Config, ankiClient *anki.Client, sheetFetcher *sheet.Fetcher, tts plan.TTSProvider, reporter status.Reporter) *Syncer {
 	return &Syncer{
 		cfg:          cfg,
 		ankiClient:   ankiClient,
 		sheetFetcher: sheetFetcher,
 		tts:          tts,
+		reporter:     reporter,
+	}
+}
+
+func (s *Syncer) report(msg status.ProgressMsg) {
+	if s.reporter != nil {
+		s.reporter.Report(msg)
 	}
 }
 
 func (s *Syncer) Validate() error {
-	start := time.Now()
+	s.report(status.ProgressMsg{Status: status.StatusValidating, Stage: "Config Validation"})
 	// 1. Basic Structure Validation (Local)
 	if err := s.cfg.Validate(); err != nil {
 		return fmt.Errorf("config format error: %w", err)
 	}
 
+	s.report(status.ProgressMsg{Status: status.StatusValidating, Stage: "Checking Anki..."})
 	// 2. Anki Environment Validation (Remote)
-	fmt.Println("🔍 Checking Anki...")
 	if err := s.cfg.ValidateWithAnki(s.ankiClient); err != nil {
 		return fmt.Errorf("anki error: %w", err)
 	}
 
+	s.report(status.ProgressMsg{Status: status.StatusValidating, Stage: "Checking Google Sheet..."})
 	// 3. Sheet Column Validation (Remote Data)
-	fmt.Println("🔍 Checking Google Sheet...")
 	headers, err := s.sheetFetcher.GetHeaders()
 	if err != nil {
 		return fmt.Errorf("sheet error: %w", err)
@@ -51,10 +60,10 @@ func (s *Syncer) Validate() error {
 			return fmt.Errorf("sheet column error: %w", err)
 		}
 	} else {
-		fmt.Println("⚠️  Warning: Sheet is empty, cannot validate columns.")
+		s.report(status.ProgressMsg{Status: status.StatusValidating, Log: "Warning: Sheet is empty, cannot validate columns."})
 	}
 
-	fmt.Printf("Validation completed in %v\n", time.Since(start).Round(time.Millisecond))
+	s.report(status.ProgressMsg{Status: status.StatusValidating, Log: "Validation completed"})
 	return nil
 }
 
@@ -62,43 +71,51 @@ func (s *Syncer) Run() error {
 	start := time.Now()
 
 	// Step 1: Get sheet headers
-	stepStart := time.Now()
+	s.report(status.ProgressMsg{Status: status.StatusFetching, Stage: "Fetching sheet headers"})
 	wordCol, err := s.sheetFetcher.GetFirstColumnName()
 	if err != nil {
 		return fmt.Errorf("failed to get sheet headers: %w", err)
 	}
-	fmt.Printf("Fetched sheet headers in %v\n", time.Since(stepStart).Round(time.Millisecond))
 
 	// Step 2: Fetch notes from Anki
+	s.report(status.ProgressMsg{Status: status.StatusFetching, Stage: "Fetching notes from Anki"})
 	ankiData, err := s.getAnkiData(wordCol)
 	if err != nil {
 		return fmt.Errorf("failed to get anki notes from deck %s ", s.cfg.AnkiDeck)
 	}
+
 	// Step 3: Build sync plan
+	s.report(status.ProgressMsg{Status: status.StatusPlanning, Stage: "Building sync plan"})
 	syncPlan, err := s.createPlan(ankiData, wordCol)
 	if err != nil {
 		return fmt.Errorf("failed to build sync plan: %w", err)
 	}
 
 	if s.cfg.DryRun {
-		fmt.Printf("- Adding %d notes: %+v\n", len(syncPlan.NewNotes), syncPlan.NewNotes)
-		fmt.Printf("- Updating %d notes: %+v\n", len(syncPlan.UpdatedNotes), syncPlan.UpdatedNotes)
-		fmt.Printf("(Dry run mode - took %v)\n", time.Since(start).Round(time.Millisecond))
+		s.report(status.ProgressMsg{Status: status.StatusDone, Log: fmt.Sprintf("Dry run: %d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))})
 		return nil
 	}
 
-	// Step 4: Execute sync
-	if err := s.executePlan(syncPlan); err != nil {
-		return fmt.Errorf("failed to execute sync: %w", err)
-
+	// Step 4: Confirm sync
+	if s.reporter != nil {
+		summary := fmt.Sprintf("Plan built: %d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))
+		if !s.reporter.Confirm(summary) {
+			s.report(status.ProgressMsg{Status: status.StatusDone, Log: "Sync cancelled by user"})
+			return nil
+		}
 	}
 
-	fmt.Printf("Synced %d new notes and %d updated notes in %v\n", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))
+	// Step 5: Execute sync
+	s.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Executing sync"})
+	if err := s.executePlan(syncPlan); err != nil {
+		return fmt.Errorf("failed to execute sync: %w", err)
+	}
+
+	s.report(status.ProgressMsg{Status: status.StatusDone, Log: fmt.Sprintf("Synced %d new and %d updated notes in %v", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))})
 	return nil
 }
 
 func (s *Syncer) getAnkiData(wordCol string) (anki.NoteMap, error) {
-	start := time.Now()
 	rawNotes, err := s.ankiClient.GetNotesFromDeck(s.cfg.AnkiDeck)
 	if err != nil {
 		return nil, err
@@ -107,27 +124,34 @@ func (s *Syncer) getAnkiData(wordCol string) (anki.NoteMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Fetched %d notes from Anki in %v\n", len(ankiData), time.Since(start).Round(time.Millisecond))
+	s.report(status.ProgressMsg{Status: status.StatusFetching, Log: fmt.Sprintf("Fetched %d notes from Anki", len(ankiData))})
 	return ankiData, nil
 }
 
 func (s *Syncer) createPlan(ankiData anki.NoteMap, wordCol string) (plan.Plan, error) {
-	start := time.Now()
 	builder := plan.NewPlanBuilder(s.cfg, s.tts, ankiData, wordCol)
-	if err := s.sheetFetcher.ForEachRecord(builder.Process); err != nil {
+
+	// We need a way to count records first if we want a progress bar here
+	// For now, let's just report each record if possible, or just a spinner
+	if err := s.sheetFetcher.ForEachRecord(func(r sheet.Record) error {
+		if err := builder.Process(r); err != nil {
+			return err
+		}
+		// Optional: report progress if we knew the total
+		return nil
+	}); err != nil {
 		return plan.Plan{}, err
 	}
+
 	builtPlan := builder.GetPlan()
-	fmt.Printf("Built plan (%d new, %d updates) in %v\n", len(builtPlan.NewNotes), len(builtPlan.UpdatedNotes), time.Since(start).Round(time.Millisecond))
+	s.report(status.ProgressMsg{Status: status.StatusPlanning, Log: fmt.Sprintf("Built plan: %d new, %d updates", len(builtPlan.NewNotes), len(builtPlan.UpdatedNotes))})
 	return builtPlan, nil
 }
 
 func (s *Syncer) executePlan(p plan.Plan) error {
-	start := time.Now()
-	exec := executor.NewExecutor(s.ankiClient, s.cfg)
+	exec := executor.NewExecutor(s.ankiClient, s.cfg, s.reporter)
 	if err := exec.Execute(p); err != nil {
 		return err
 	}
-	fmt.Printf("Executed sync in %v\n", time.Since(start).Round(time.Millisecond))
 	return nil
 }

@@ -4,12 +4,18 @@ import (
 	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/plan"
+	"anki-sync-go/internal/status"
 	"fmt"
 )
+
+type Reporter interface {
+	Report(status.ProgressMsg)
+}
 
 type Executor struct {
 	ankiClient AnkiClient
 	config     config.Config
+	reporter   Reporter
 }
 
 type AnkiClient interface {
@@ -17,21 +23,41 @@ type AnkiClient interface {
 	UpdateNotes(notes []any) error
 }
 
-func NewExecutor(client AnkiClient, cfg config.Config) *Executor {
+func NewExecutor(client AnkiClient, cfg config.Config, r Reporter) *Executor {
 	return &Executor{
 		ankiClient: client,
 		config:     cfg,
+		reporter:   r,
+	}
+}
+
+func (e *Executor) report(msg status.ProgressMsg) {
+	if e.reporter != nil {
+		e.reporter.Report(msg)
 	}
 }
 
 // Execute performs the actual updates and additions to Anki
 func (e *Executor) Execute(p plan.Plan) error {
-	if err := e.ExecuteAdditions(p.NewNotes); err != nil {
-		return fmt.Errorf("failed to execute additions: %w", err)
+	total := len(p.NewNotes) + len(p.UpdatedNotes)
+	current := 0
+
+	if len(p.NewNotes) > 0 {
+		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Adding notes", Current: current, Total: total})
+		if err := e.ExecuteAdditions(p.NewNotes); err != nil {
+			return fmt.Errorf("failed to execute additions: %w", err)
+		}
+		current += len(p.NewNotes)
+		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Adding notes", Current: current, Total: total})
 	}
 
-	if err := e.ExecuteUpdates(p.UpdatedNotes); err != nil {
-		return fmt.Errorf("failed to execute updates: %w", err)
+	if len(p.UpdatedNotes) > 0 {
+		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Updating notes", Current: current, Total: total})
+		if err := e.ExecuteUpdates(p.UpdatedNotes); err != nil {
+			return fmt.Errorf("failed to execute updates: %w", err)
+		}
+		current += len(p.UpdatedNotes)
+		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Updating notes", Current: current, Total: total})
 	}
 
 	return nil

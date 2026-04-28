@@ -6,12 +6,17 @@ import (
 	"anki-sync-go/internal/plan"
 	"anki-sync-go/internal/sheet"
 	"anki-sync-go/internal/syncer"
+	"anki-sync-go/internal/status"
+	"anki-sync-go/internal/ui"
 	"flag"
 	"fmt"
 	"log"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
+	// ... (flag parsing remains the same)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: sync [options]\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Anki sync tool synchronizes Google Sheet data with Anki flashcards.\n\n")
@@ -38,19 +43,30 @@ func main() {
 	cfg.ForceSync = *force
 	cfg.DryRun = *dryRun
 
+	tui := ui.NewTUI(*dryRun)
+	p := tea.NewProgram(tui)
+
 	ankiClient := anki.NewClient()
 	sheetFetcher := sheet.NewFetcher(cfg.SheetCSVURL)
 	tts := plan.NewGoogleTTS("ja")
 
-	syncSvc := syncer.NewSyncer(cfg, ankiClient, sheetFetcher, tts)
+	syncSvc := syncer.NewSyncer(cfg, ankiClient, sheetFetcher, tts, tui)
 
-	if !*skipValidate {
-		if err := syncSvc.Validate(); err != nil {
-			log.Fatalf("Validation failed: %v", err)
+	go func() {
+		if !*skipValidate {
+			if err := syncSvc.Validate(); err != nil {
+				tui.Report(status.ProgressMsg{Status: status.StatusError, Error: err})
+				return
+			}
 		}
-	}
 
-	if err := syncSvc.Run(); err != nil {
-		log.Fatalf("Sync failed: %v", err)
+		if err := syncSvc.Run(); err != nil {
+			tui.Report(status.ProgressMsg{Status: status.StatusError, Error: err})
+			return
+		}
+	}()
+
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("Error running TUI: %v", err)
 	}
 }
