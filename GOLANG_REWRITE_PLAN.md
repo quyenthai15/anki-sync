@@ -32,6 +32,28 @@
 - **Verbose mode**: Detailed logging with `-v` flag
 - **Interactive confirmations**: Prompt before destructive operations in non-dry-run mode
 
+#### Bubbletea approach
+
+I've analyzed the current codebase and identified that the Syncer logic is linear and uses standard output for logging. To enhance the UX with a Terminal UI (TUI), I suggest using the Bubble Tea framework by Charmbracelet. It's the industry standard for modern Go TUIs, offering a clean Model-View-Update (MVU) architecture that fits perfectly with your project's goals.
+
+**Proposed Approaches**
+
+1. Interactive Sync Dashboard (Recommended)
+Transform the linear log output into a live dashboard.
+* Progress Bars: Use bubbles/progress to show real-time progress for fetching sheet data and executing Anki updates.
+* Spinners: Use bubbles/spinner during validation steps (e.g., "Checking Anki connection...").
+* Live Log: A scrolling area at the bottom showing the last few operations.
+
+2. Pre-Sync Preview & Confirmation
+Before execution, show a structured summary of what will happen.
+* Summary Table: Use bubbles/table to list exactly which notes will be added vs. updated.
+* Interactive Confirmation: Instead of a --dry-run flag, provide a [Y/n] prompt within the TUI to "Commit" the changes.
+
+3. Selection & Configuration Menu
+If the app grows, you could add an entry menu:
+* Deck Selection: Choose which Anki deck to sync with if multiple are configured.
+* Profile Switcher: Quickly switch between different sync configurations.
+
 ### 2. Batch Processing & Concurrency
 - **Parallel Anki data fetching**: Replace sequential `notesInfo` calls with concurrent goroutines.
 - **Concurrent audio downloads**: Separate media storage from field updates using worker pools.
