@@ -12,8 +12,20 @@ const (
 	Error
 )
 
+func (s Step) String() string {
+	return [...]string{
+		"Idle",
+		"Validating",
+		"Fetching",
+		"Planning",
+		"Executing",
+		"Done",
+		"Error",
+	}[s]
+}
+
 type Event interface {
-	syncEvent()
+	isEvent()
 }
 
 type ProgressMsg struct {
@@ -38,11 +50,11 @@ type PlanMsg struct {
 	Summary string
 }
 
-func (PhaseMsg) syncEvent()    {}
-func (LogMsg) syncEvent()      {}
-func (PlanMsg) syncEvent()     {}
-func (ProgressMsg) syncEvent() {}
-func (ErrMsg) syncEvent()      {}
+func (PhaseMsg) isEvent()    {}
+func (LogMsg) isEvent()      {}
+func (PlanMsg) isEvent()     {}
+func (ProgressMsg) isEvent() {}
+func (ErrMsg) isEvent()      {}
 
 type Reporter interface {
 	Report(Event)
