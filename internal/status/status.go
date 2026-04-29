@@ -7,6 +7,7 @@ const (
 	Validating
 	Fetching
 	Planning
+	Confirming
 	Executing
 	Done
 	Error
@@ -18,6 +19,7 @@ func (s Step) String() string {
 		"Validating",
 		"Fetching",
 		"Planning",
+		"Confirming",
 		"Executing",
 		"Done",
 		"Error",
@@ -46,13 +48,13 @@ type PhaseMsg struct {
 	Label string
 }
 
-type PlanMsg struct {
+type ConfirmMsg struct {
 	Summary string
 }
 
 func (PhaseMsg) isEvent()    {}
 func (LogMsg) isEvent()      {}
-func (PlanMsg) isEvent()     {}
+func (ConfirmMsg) isEvent()  {}
 func (ProgressMsg) isEvent() {}
 func (ErrMsg) isEvent()      {}
 

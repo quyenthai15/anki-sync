@@ -88,6 +88,7 @@ func (b *MessageBus) SendConfirmation(approved bool) {
 }
 
 func (m *TUI) Confirm(summary string) bool {
+	m.bus.SendProgress(status.ConfirmMsg{Summary: summary})
 	return m.bus.WaitForConfirmation()
 }
 
@@ -110,6 +111,7 @@ func (m *TUI) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "Y":
 		if m.awaitingConfirm() {
 			m.bus.SendConfirmation(true)
+			return m, m.bus.WaitForProgress()
 		}
 
 	case "n", "N":
@@ -122,61 +124,62 @@ func (m *TUI) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *TUI) handleEvent(msg status.Event) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case status.PhaseMsg:
+		m.step = msg.Step
+		m.stepMsg = msg.Label
+
+	case status.LogMsg:
+		if msg.Text != "" {
+			m.logs = append(m.logs, msg.Text)
+			if len(m.logs) > 8 { // Keep a small, readable log window
+				m.logs = m.logs[1:]
+			}
+		}
+
+	case status.ProgressMsg:
+		if msg.Total > 0 {
+			cmd = m.progress.SetPercent(float64(msg.Current) / float64(msg.Total))
+		}
+
+	case status.ConfirmMsg:
+		m.planSummary = msg.Summary
+		m.step = status.Confirming
+
+	case status.ErrMsg:
+		m.err = msg.Error
+		m.step = status.Error
+	}
+
+	// Handle termination states
+	if m.step == status.Done || m.step == status.Error {
+		m.quitting = true
+		return m, tea.Sequence(cmd, tea.Quit)
+	}
+
+	// If we're waiting for user input, stop asking for more progress events
+	// until the user responds (which will either quit or move to Executing)
+	if m.awaitingConfirm() {
+		return m, cmd
+	}
+
+	// Otherwise, keep the event loop alive
+	return m, tea.Batch(cmd, m.bus.WaitForProgress())
+}
+
 func (m *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
-
 	case status.Event:
-		var cmd tea.Cmd
-
-		switch msg := msg.(type) {
-		case status.PhaseMsg:
-			m.step = msg.Step
-			m.stepMsg = msg.Label
-
-		case status.LogMsg:
-			if msg.Text != "" {
-				m.logs = append(m.logs, msg.Text)
-				if len(m.logs) > 8 { // Keep a small, readable log window
-					m.logs = m.logs[1:]
-				}
-			}
-
-		case status.ProgressMsg:
-			if msg.Total > 0 {
-				cmd = m.progress.SetPercent(float64(msg.Current) / float64(msg.Total))
-			}
-
-		case status.PlanMsg:
-			m.planSummary = msg.Summary
-			m.step = status.Planning
-
-		case status.ErrMsg:
-			m.err = msg.Error
-			m.step = status.Error
-		}
-
-		// Handle termination states
-		if m.step == status.Done || m.step == status.Error {
-			m.quitting = true
-			return m, tea.Sequence(cmd, tea.Quit)
-		}
-
-		// If we're waiting for user input, stop asking for more progress events
-		// until the user responds (which will either quit or move to Executing)
-		if m.awaitingConfirm() {
-			return m, cmd
-		}
-
-		// Otherwise, keep the event loop alive
-		return m, tea.Batch(cmd, m.bus.WaitForProgress())
-
+		return m.handleEvent(msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-
 	case progress.FrameMsg:
 		newModel, cmd := m.progress.Update(msg)
 		if pm, ok := newModel.(progress.Model); ok {
@@ -184,7 +187,6 @@ func (m *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-
 	return m, nil
 }
 
@@ -194,43 +196,57 @@ func (m *TUI) View() string {
 	}
 
 	var s strings.Builder
-
-	// 1. Header & Status
-	s.WriteString("\n")
-	s.WriteString(titleStyle.Render(" ANKI SYNC "))
-	s.WriteString(" " + m.stepMsg + "\n\n")
-
-	// 2. Main Content Area
-	switch m.step {
-	case status.Validating, status.Fetching:
-		s.WriteString("  " + m.spinner.View() + " Processing...\n\n")
-
-	case status.Planning:
-		if m.awaitingConfirm() {
-			s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("  ? Confirm sync? [y/N]"))
-			s.WriteString("\n\n" + indent(m.planSummary, "    ") + "\n\n")
-		}
-
-	case status.Executing:
-		s.WriteString("  " + m.progress.View() + "\n\n")
-	}
-
-	// 3. Logs Area (only shown when not confirming)
-	if !m.awaitingConfirm() && len(m.logs) > 0 {
-		for _, log := range m.logs {
-			s.WriteString(logStyle.Render("  • "+log) + "\n")
-		}
-		s.WriteString("\n")
-	}
-
-	// 4. Footer
-	if m.quitting {
-		s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("  ✔ Done!\n"))
-	} else {
-		s.WriteString(logStyle.Render("  press q to quit\n"))
-	}
+	s.WriteString(m.renderHeader())
+	s.WriteString(m.renderMainContent())
+	s.WriteString(m.renderLogs())
+	s.WriteString(m.renderFooter())
 
 	return s.String()
+}
+
+func (m *TUI) renderHeader() string {
+	return fmt.Sprintf("\n%s %s\n\n",
+		titleStyle.Render(" ANKI SYNC "),
+		m.stepMsg,
+	)
+}
+
+func (m *TUI) renderMainContent() string {
+	switch m.step {
+	case status.Validating, status.Fetching:
+		return "  " + m.spinner.View() + " Processing...\n\n"
+
+	case status.Planning:
+		return "  " + m.spinner.View() + " Processing...\n\n"
+
+	case status.Confirming:
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("  ? Confirm sync? [y/N]") +
+			"\n\n" + indent(m.planSummary, "    ") + "\n\n"
+
+	case status.Executing:
+		return "  " + m.progress.View() + "\n\n"
+	}
+	return ""
+}
+
+func (m *TUI) renderLogs() string {
+	if m.awaitingConfirm() || len(m.logs) == 0 {
+		return ""
+	}
+
+	var s strings.Builder
+	for _, log := range m.logs {
+		s.WriteString(logStyle.Render("  • "+log) + "\n")
+	}
+	s.WriteString("\n")
+	return s.String()
+}
+
+func (m *TUI) renderFooter() string {
+	if m.quitting {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("  ✔ Done!\n")
+	}
+	return logStyle.Render("  press q to quit\n")
 }
 
 func indent(s, prefix string) string {
@@ -242,7 +258,7 @@ func indent(s, prefix string) string {
 }
 
 func (m *TUI) awaitingConfirm() bool {
-	return m.step == status.Planning && !m.dryRun && m.planSummary != ""
+	return m.step == status.Confirming
 }
 
 func (m *TUI) Report(msg status.Event) {

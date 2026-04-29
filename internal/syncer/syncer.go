@@ -97,9 +97,15 @@ func (s *Syncer) Run() error {
 		return nil
 	}
 
-	// Step 4: Confirm sync
+	// Step 4: Confirm sync (skip if nothing to do)
+	if len(syncPlan.NewNotes) == 0 && len(syncPlan.UpdatedNotes) == 0 {
+		s.report(status.LogMsg{Text: "Nothing to sync"})
+		s.report(status.PhaseMsg{Step: status.Done, Label: "Nothing to sync"})
+		return nil
+	}
+
 	if s.reporter != nil {
-		summary := fmt.Sprintf("Plan built: %d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))
+		summary := fmt.Sprintf("%d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))
 		if !s.reporter.Confirm(summary) {
 			s.report(status.LogMsg{Text: "Sync cancelled by user"})
 			s.report(status.PhaseMsg{Step: status.Done, Label: "Cancelled"})
@@ -147,7 +153,6 @@ func (s *Syncer) createPlan(ankiData anki.NoteMap, wordCol string) (plan.Plan, e
 	}
 
 	builtPlan := builder.GetPlan()
-	s.report(status.PlanMsg{Summary: fmt.Sprintf("Built plan: %d new, %d updates", len(builtPlan.NewNotes), len(builtPlan.UpdatedNotes))})
 	return builtPlan, nil
 }
 
