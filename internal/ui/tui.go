@@ -18,20 +18,19 @@ var (
 			Padding(0, 1).
 			Bold(true)
 	statusStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF5F87"))
+			Foreground(lipgloss.Color("#FF7F87"))
 	logStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#767676"))
 )
 
 type TUI struct {
-	status      status.SyncStatus
-	stage       string
+	bus         *MessageBus
+	step        status.Step
+	stepMsg     string
 	progress    progress.Model
 	spinner     spinner.Model
 	logs        []string
 	err         error
-	msgs        chan status.ProgressMsg
-	confirmChan chan bool
 	quitting    bool
 	dryRun      bool
 	planSummary string
@@ -43,89 +42,118 @@ func NewTUI(dryRun bool) *TUI {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return &TUI{
-		status:      status.StatusIdle,
-		progress:    progress.New(progress.WithDefaultGradient()),
-		spinner:     s,
-		msgs:        make(chan status.ProgressMsg, 100),
-		confirmChan: make(chan bool),
-		dryRun:      dryRun,
+		step:     status.Idle,
+		progress: progress.New(progress.WithDefaultGradient()),
+		spinner:  s,
+		bus: &MessageBus{
+			incoming: make(chan status.Event, 100),
+			confirm:  make(chan bool),
+		},
+		dryRun: dryRun,
+	}
+}
+
+type MessageBus struct {
+	incoming chan status.Event
+	confirm  chan bool
+}
+
+func (b *MessageBus) WaitForProgress() tea.Cmd {
+	return func() tea.Msg {
+		return <-b.incoming
+	}
+}
+
+func (b *MessageBus) SendProgress(msg status.Event) {
+	select {
+	case b.incoming <- msg:
+	default:
+	}
+
+}
+
+func (b *MessageBus) WaitForConfirmation() bool {
+	return <-b.confirm
+}
+
+func (b *MessageBus) SendConfirmation(approved bool) {
+	select {
+	case b.confirm <- approved:
+	default:
 	}
 }
 
 func (m *TUI) Confirm(summary string) bool {
-	return <-m.confirmChan
+	return m.bus.WaitForConfirmation()
 }
 
 func (m *TUI) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
-		m.waitForMsg(),
+		m.bus.WaitForProgress(),
 	)
 }
 
-func (m *TUI) waitForMsg() tea.Cmd {
-	return func() tea.Msg {
-		return <-m.msgs
+func (m *TUI) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.quitting = true
+		if m.awaitingConfirm() {
+			// If we quit during planning/confirmation, send false
+			m.bus.SendConfirmation(false)
+		}
+		return m, tea.Quit
+	case "y", "Y":
+		if m.awaitingConfirm() {
+			m.bus.SendConfirmation(true)
+		}
+	case "n", "N":
+		if m.awaitingConfirm() {
+			m.bus.SendConfirmation(false)
+			m.quitting = true
+			return m, tea.Quit
+		}
 	}
+	return m, nil
 }
 
 func (m *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
-			if m.status == status.StatusPlanning && !m.dryRun {
-				// If we quit during planning/confirmation, send false
-				select {
-				case m.confirmChan <- false:
-				default:
-				}
-			}
-			return m, tea.Quit
-		case "y", "Y":
-			if m.status == status.StatusPlanning && !m.dryRun {
-				select {
-				case m.confirmChan <- true:
-				default:
-				}
-			}
-		case "n", "N":
-			if m.status == status.StatusPlanning && !m.dryRun {
-				select {
-				case m.confirmChan <- false:
-				default:
-				}
-				m.quitting = true
-				return m, tea.Quit
-			}
-		}
+		return m.handleKey(msg)
 
-	case status.ProgressMsg:
-		m.status = msg.Status
-		if msg.Stage != "" {
-			m.stage = msg.Stage
-		}
-		if msg.Log != "" {
-			if strings.HasPrefix(msg.Log, "Built plan:") {
-				m.planSummary = msg.Log
-			}
-			m.logs = append(m.logs, msg.Log)
-			if len(m.logs) > 10 {
-				m.logs = m.logs[1:]
-			}
-		}
-		if msg.Error != nil {
-			m.err = msg.Error
-			m.status = status.StatusError
-		}
-
+	case status.Event:
 		var cmd tea.Cmd
-		if msg.Total > 0 {
-			cmd = m.progress.SetPercent(float64(msg.Current) / float64(msg.Total))
+
+		switch msg := msg.(type) {
+		case status.PhaseMsg:
+			m.step = msg.Step
+			m.stepMsg = msg.Label
+
+		case status.LogMsg:
+			if msg.Text != "" {
+				m.logs = append(m.logs, msg.Text)
+				if len(m.logs) > 10 {
+					m.logs = m.logs[1:]
+				}
+			}
+		case status.ProgressMsg:
+			if msg.Total > 0 {
+				cmd = m.progress.SetPercent(float64(msg.Current) / float64(msg.Total))
+			}
+		case status.PlanMsg:
+			if msg.Summary != "" {
+				m.planSummary = msg.Summary
+				m.step = status.Planning
+			}
+		case status.ErrMsg:
+			if msg.Error != nil {
+				m.err = msg.Error
+				m.step = status.Error
+			}
 		}
 
-		if m.status == status.StatusDone || m.status == status.StatusError {
+		if m.step == status.Done || m.step == status.Error {
 			m.quitting = true
 			return m, tea.Sequence(cmd, tea.Quit)
 		}
@@ -135,7 +163,7 @@ func (m *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		return m, tea.Batch(cmd, m.waitForMsg())
+		return m, tea.Batch(cmd, m.bus.WaitForProgress())
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -164,14 +192,12 @@ func (m *TUI) View() string {
 
 	if m.awaitingConfirm() {
 		m.renderConfirmMsg(&s)
+	} else {
+		m.renderLogs(&s)
 	}
-
-	m.renderLogs(&s)
 
 	if m.quitting {
 		s.WriteString("\n Done!\n")
-	} else if m.awaitingConfirm() {
-		// Instructions are in the confirmation prompt
 	} else {
 		s.WriteString("\n Press q to quit\n")
 	}
@@ -180,25 +206,25 @@ func (m *TUI) View() string {
 }
 
 func (m *TUI) awaitingConfirm() bool {
-	return m.status == status.StatusPlanning && !m.dryRun && m.planSummary != ""
+	return m.step == status.Planning && !m.dryRun && m.planSummary != ""
 }
 
 func (m *TUI) renderStatusMsg(s *strings.Builder) {
 	s.WriteString("\n")
 	s.WriteString(titleStyle.Render(" Anki Sync "))
-	s.WriteString("  " + m.stage + "\n\n")
+	s.WriteString("  " + m.stepMsg + "\n\n")
 
-	switch m.status {
-	case status.StatusValidating, status.StatusFetching:
+	switch m.step {
+	case status.Validating, status.Fetching:
 		s.WriteString(m.spinner.View() + " Working...\n\n")
-	case status.StatusPlanning, status.StatusExecuting:
+	case status.Executing:
 		s.WriteString(m.progress.View() + "\n\n")
 	}
 }
 
 func (m *TUI) renderConfirmMsg(s *strings.Builder) {
-	s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("Confirm sync? [y/N]\n"))
-	s.WriteString(lipgloss.NewStyle().Italic(true).Render(m.planSummary) + "\n\n")
+	s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("Confirm sync? [y/N]\n\n"))
+	s.WriteString(lipgloss.NewStyle().Render(m.planSummary) + "\n\n")
 }
 
 func (m *TUI) renderLogs(s *strings.Builder) {
@@ -210,6 +236,6 @@ func (m *TUI) renderLogs(s *strings.Builder) {
 	}
 }
 
-func (m *TUI) Report(msg status.ProgressMsg) {
-	m.msgs <- msg
+func (m *TUI) Report(msg status.Event) {
+	m.bus.SendProgress(msg)
 }

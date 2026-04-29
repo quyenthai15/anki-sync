@@ -1,27 +1,50 @@
 package status
 
-type SyncStatus int
+type Step int
 
 const (
-	StatusIdle SyncStatus = iota
-	StatusValidating
-	StatusFetching
-	StatusPlanning
-	StatusExecuting
-	StatusDone
-	StatusError
+	Idle Step = iota
+	Validating
+	Fetching
+	Planning
+	Executing
+	Done
+	Error
 )
 
-type ProgressMsg struct {
-	Status  SyncStatus
-	Stage   string
-	Current int
-	Total   int
-	Log     string
-	Error   error
+type Event interface {
+	syncEvent()
 }
 
+type ProgressMsg struct {
+	Current int
+	Total   int
+}
+
+type ErrMsg struct {
+	Error error
+}
+
+type LogMsg struct {
+	Text string
+}
+
+type PhaseMsg struct {
+	Step  Step
+	Label string
+}
+
+type PlanMsg struct {
+	Summary string
+}
+
+func (PhaseMsg) syncEvent()    {}
+func (LogMsg) syncEvent()      {}
+func (PlanMsg) syncEvent()     {}
+func (ProgressMsg) syncEvent() {}
+func (ErrMsg) syncEvent()      {}
+
 type Reporter interface {
-	Report(ProgressMsg)
+	Report(Event)
 	Confirm(summary string) bool
 }

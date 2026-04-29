@@ -9,7 +9,7 @@ import (
 )
 
 type Reporter interface {
-	Report(status.ProgressMsg)
+	Report(status.Event)
 }
 
 type Executor struct {
@@ -31,7 +31,7 @@ func NewExecutor(client AnkiClient, cfg config.Config, r Reporter) *Executor {
 	}
 }
 
-func (e *Executor) report(msg status.ProgressMsg) {
+func (e *Executor) report(msg status.Event) {
 	if e.reporter != nil {
 		e.reporter.Report(msg)
 	}
@@ -43,21 +43,23 @@ func (e *Executor) Execute(p plan.Plan) error {
 	current := 0
 
 	if len(p.NewNotes) > 0 {
-		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Adding notes", Current: current, Total: total})
+		e.report(status.ProgressMsg{Current: current, Total: total})
+		e.report(status.LogMsg{Text: "Adding notes"})
 		if err := e.ExecuteAdditions(p.NewNotes); err != nil {
 			return fmt.Errorf("failed to execute additions: %w", err)
 		}
 		current += len(p.NewNotes)
-		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Adding notes", Current: current, Total: total})
+		e.report(status.ProgressMsg{Current: current, Total: total})
 	}
 
 	if len(p.UpdatedNotes) > 0 {
-		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Updating notes", Current: current, Total: total})
+		e.report(status.ProgressMsg{Current: current, Total: total})
+		e.report(status.LogMsg{Text: "Updating notes"})
 		if err := e.ExecuteUpdates(p.UpdatedNotes); err != nil {
 			return fmt.Errorf("failed to execute updates: %w", err)
 		}
 		current += len(p.UpdatedNotes)
-		e.report(status.ProgressMsg{Status: status.StatusExecuting, Stage: "Updating notes", Current: current, Total: total})
+		e.report(status.ProgressMsg{Current: current, Total: total})
 	}
 
 	return nil

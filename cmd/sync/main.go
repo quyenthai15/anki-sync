@@ -55,13 +55,13 @@ func main() {
 	go func() {
 		if !*skipValidate {
 			if err := syncSvc.Validate(); err != nil {
-				tui.Report(status.ProgressMsg{Status: status.StatusError, Error: err})
+				tui.Report(status.ErrMsg{Error: err})
 				return
 			}
 		}
 
 		if err := syncSvc.Run(); err != nil {
-			tui.Report(status.ProgressMsg{Status: status.StatusError, Error: err})
+			tui.Report(status.ErrMsg{Error: err})
 			return
 		}
 	}()
