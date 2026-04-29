@@ -125,13 +125,13 @@ func (m *TUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = m.progress.SetPercent(float64(msg.Current) / float64(msg.Total))
 		}
 
-		if (m.status == status.StatusDone || m.status == status.StatusError) {
+		if m.status == status.StatusDone || m.status == status.StatusError {
 			m.quitting = true
 			return m, tea.Sequence(cmd, tea.Quit)
 		}
 
 		// Don't wait for next message if we are waiting for confirmation
-		if m.status == status.StatusPlanning && !m.dryRun && m.planSummary != "" {
+		if m.awaitingConfirm() {
 			return m, cmd
 		}
 
@@ -160,37 +160,54 @@ func (m *TUI) View() string {
 
 	var s strings.Builder
 
-	s.WriteString("\n")
-	s.WriteString(titleStyle.Render(" Anki Sync "))
-	s.WriteString("  " + m.stage + "\n\n")
+	m.renderStatusMsg(&s)
 
-	if m.status == status.StatusValidating || m.status == status.StatusFetching {
-		s.WriteString(m.spinner.View() + " Working...\n\n")
-	} else if m.status == status.StatusPlanning || m.status == status.StatusExecuting {
-		s.WriteString(m.progress.View() + "\n\n")
+	if m.awaitingConfirm() {
+		m.renderConfirmMsg(&s)
 	}
 
-	if m.status == status.StatusPlanning && !m.dryRun && m.planSummary != "" {
-		s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("Confirm sync?") + " [y/N]\n")
-		s.WriteString(lipgloss.NewStyle().Italic(true).Render(m.planSummary) + "\n\n")
-	}
-
-	if len(m.logs) > 0 {
-		s.WriteString("Recent logs:\n")
-		for _, log := range m.logs {
-			s.WriteString(logStyle.Render(" • "+log) + "\n")
-		}
-	}
+	m.renderLogs(&s)
 
 	if m.quitting {
 		s.WriteString("\n Done!\n")
-	} else if m.status == status.StatusPlanning && !m.dryRun && m.planSummary != "" {
+	} else if m.awaitingConfirm() {
 		// Instructions are in the confirmation prompt
 	} else {
 		s.WriteString("\n Press q to quit\n")
 	}
 
 	return s.String()
+}
+
+func (m *TUI) awaitingConfirm() bool {
+	return m.status == status.StatusPlanning && !m.dryRun && m.planSummary != ""
+}
+
+func (m *TUI) renderStatusMsg(s *strings.Builder) {
+	s.WriteString("\n")
+	s.WriteString(titleStyle.Render(" Anki Sync "))
+	s.WriteString("  " + m.stage + "\n\n")
+
+	switch m.status {
+	case status.StatusValidating, status.StatusFetching:
+		s.WriteString(m.spinner.View() + " Working...\n\n")
+	case status.StatusPlanning, status.StatusExecuting:
+		s.WriteString(m.progress.View() + "\n\n")
+	}
+}
+
+func (m *TUI) renderConfirmMsg(s *strings.Builder) {
+	s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("Confirm sync? [y/N]\n"))
+	s.WriteString(lipgloss.NewStyle().Italic(true).Render(m.planSummary) + "\n\n")
+}
+
+func (m *TUI) renderLogs(s *strings.Builder) {
+	if len(m.logs) > 0 {
+		s.WriteString("Recent logs:\n")
+		for _, log := range m.logs {
+			s.WriteString(logStyle.Render(" • "+log) + "\n")
+		}
+	}
 }
 
 func (m *TUI) Report(msg status.ProgressMsg) {
