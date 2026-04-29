@@ -26,11 +26,14 @@
 
 ## Enhancement Roadmap
 
-### 1. Enhanced CLI Experience
-- **Progress bars**: Real-time progress indication for long-running operations
-- **Colored output**: ANSI color codes for different message types (success, warning, error)
-- **Verbose mode**: Detailed logging with `-v` flag
-- **Interactive confirmations**: Prompt before destructive operations in non-dry-run mode
+#### 1. Enhanced CLI Experience
+- **Interactive Sync Preview**: Before executing changes, show a beautifully rendered table of what will be added or updated.
+- **Default Update Behavior**: By default, the tool will update existing notes (equivalent to current `--force`).
+- **Opt-out Updates**: Introduce an `--add-only` flag to skip updating existing notes and only add new ones.
+- **Progress bars**: Real-time progress indication for long-running operations.
+- **Colored output**: ANSI color codes for different message types (success, warning, error).
+- **Verbose mode**: Detailed logging with `-v` flag.
+- **Interactive confirmations**: Prompt before destructive operations in non-dry-run mode.
 
 #### Bubbletea approach
 
@@ -38,7 +41,7 @@ I've analyzed the current codebase and identified that the Syncer logic is linea
 
 **Proposed Approaches**
 
-1. Interactive Sync Dashboard (Recommended)
+1. Interactive Sync Dashboard (Done)
 Transform the linear log output into a live dashboard.
 * Progress Bars: Use bubbles/progress to show real-time progress for fetching sheet data and executing Anki updates.
 * Spinners: Use bubbles/spinner during validation steps (e.g., "Checking Anki connection...").
@@ -46,8 +49,9 @@ Transform the linear log output into a live dashboard.
 
 2. Pre-Sync Preview & Confirmation
 Before execution, show a structured summary of what will happen.
-* Summary Table: Use bubbles/table to list exactly which notes will be added vs. updated.
-* Interactive Confirmation: Instead of a --dry-run flag, provide a [Y/n] prompt within the TUI to "Commit" the changes.
+* **Diff Preview Table**: Use `bubbles/table` or custom lipgloss styles to list exactly which notes will be added vs. updated, highlighting field changes.
+* Interactive Confirmation: may drop --dry-run since we already have [Y/n] prompt
+
 
 3. Selection & Configuration Menu
 If the app grows, you could add an entry menu:
@@ -101,14 +105,14 @@ If the app grows, you could add an entry menu:
 ## Implementation Priority
 
 **Phase 1 (Immediate)**
-1. Implement enhanced CLI features (progress bars, colors)
-2. Implement batch processing & concurrency with goroutines
-3. Add comprehensive test suite
+1. Implement interactive preview table (TUI)
+2. Change default behavior to "Always Update" and add `--add-only` flag
+3. Implement progress bars for sheet fetching and Anki updates
 
 **Phase 2 (Short-term)**
-1. Implement record count limiting (`-n` flag)
-2. Implement diff preview enhancements
-3. Add retry logic and error handling improvements
+1. Implement batch processing & concurrency with goroutines
+2. Add comprehensive test suite
+3. Implement record count limiting (`-n` flag)
 
 
 ---
@@ -134,7 +138,7 @@ for _, chunk := range chunks {
 // Enhanced flag parsing
 var (
     dryRun    = flag.Bool("dry-run", false, "Show changes without executing")
-    force     = flag.Bool("force", false, "Force update existing notes")
+    addOnly   = flag.Bool("add-only", false, "Only add new notes, do not update existing ones")
     verbose   = flag.Bool("verbose", false, "Enable detailed logging")
     limit     = flag.Int("n", 0, "Process only N records (0 = all)")
     batchSize = flag.Int("batch-size", 50, "Batch size for Anki operations")
