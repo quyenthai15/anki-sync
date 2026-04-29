@@ -87,12 +87,15 @@ func (c Config) ValidateWithAnki(anki AnkiProvider) error {
 	return nil
 }
 
-// ValidateWithSheet checks if the mapping keys exist as columns.
+// ValidateWithSheet checks if the mapping keys and sentence source column exist as columns.
 func (c Config) ValidateWithSheet(headers []string) error {
 	for sheetCol := range c.Mapping {
 		if !slices.Contains(headers, sheetCol) {
 			return fmt.Errorf("column '%s' not found in Google Sheet", sheetCol)
 		}
+	}
+	if !slices.Contains(headers, c.SentenceSourceCol) {
+		return fmt.Errorf("sentence source column '%s' not found in Google Sheet", c.SentenceSourceCol)
 	}
 	return nil
 }

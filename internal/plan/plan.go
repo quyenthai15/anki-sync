@@ -68,23 +68,23 @@ func NewPlanBuilder(
 func (b *PlanBuilder) Process(r sheet.Record) error {
 	targetFields := b.config.MapRecord(r)
 	word := r[b.wordCol]
+	sentence := r[b.config.SentenceSourceCol]
 
 	existing, found := b.existingNotes[word]
 	if !found {
-		return b.processNewNote(word, targetFields)
+		return b.processNewNote(word, sentence, targetFields)
 	}
 
-	return b.processUpdateNote(word, targetFields, existing)
+	return b.processUpdateNote(word, sentence, targetFields, existing)
 }
 
-func (b *PlanBuilder) processNewNote(word string, fields map[string]string) error {
+func (b *PlanBuilder) processNewNote(word, sentence string, fields map[string]string) error {
 	var audios []anki.AudioInfo
 
 	if audio, ok := b.createWordAudio(word); ok {
 		audios = append(audios, audio)
 	}
 
-	sentence := fields[b.config.SentenceSourceCol]
 	if audio, ok := b.createSentenceAudio(sentence); ok {
 		audios = append(audios, audio)
 	}
@@ -93,7 +93,7 @@ func (b *PlanBuilder) processNewNote(word string, fields map[string]string) erro
 	return nil
 }
 
-func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, existing anki.NormalizedNote) error {
+func (b *PlanBuilder) processUpdateNote(word, sentence string, fields map[string]string, existing anki.NormalizedNote) error {
 	if !b.config.ForceSync {
 		return nil
 	}
@@ -108,8 +108,8 @@ func (b *PlanBuilder) processUpdateNote(word string, fields map[string]string, e
 	}
 
 	// Handle Sentence Audio - if missing or sentence changed
-	sentence := fields[b.config.SentenceSourceCol]
-	sentenceChanged := existing.Fields[b.config.SentenceSourceCol] != sentence
+	sentenceAnkiField := b.config.Mapping[b.config.SentenceSourceCol]
+	sentenceChanged := existing.Fields[sentenceAnkiField] != sentence
 	if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
 		if audio, ok := b.createSentenceAudio(sentence); ok {
 			audios = append(audios, audio)
