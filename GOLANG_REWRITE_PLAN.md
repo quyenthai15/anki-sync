@@ -14,9 +14,10 @@
 - ✅ CLI flags and command structure
 - ✅ Executor and basic reporter modules
 - ✅ Configuration validation (on startup)
+- ✅ Interactive Sync Preview (TUI)
+- ✅ Default "Always Update" behavior
 
 **Remaining Sessions:**
-- 🔄 Enhanced CLI features (progress bars, colors)
 - 🔄 Batch processing with goroutines
 - 🔄 Bounded concurrency with errgroup
 - 🔄 Comprehensive test suite
@@ -27,13 +28,13 @@
 ## Enhancement Roadmap
 
 #### 1. Enhanced CLI Experience
-- **Interactive Sync Preview**: Before executing changes, show a beautifully rendered table of what will be added or updated.
-- **Default Update Behavior**: By default, the tool will update existing notes (equivalent to current `--force`).
-- **Opt-out Updates**: Introduce an `--add-only` flag to skip updating existing notes and only add new ones.
-- **Progress bars**: Real-time progress indication for long-running operations.
-- **Colored output**: ANSI color codes for different message types (success, warning, error).
-- **Verbose mode**: Detailed logging with `-v` flag.
-- **Interactive confirmations**: Prompt before destructive operations in non-dry-run mode.
+- ✅ **Interactive Sync Preview**: Before executing changes, show a beautifully rendered summary of what will be added or updated.
+- ✅ **Default Update Behavior**: By default, the tool updates existing notes (equivalent to previous `--force`).
+- 🔄 **Opt-out Updates**: Introduce an `--add-only` flag to skip updating existing notes and only add new ones.
+- 🔄 **Progress bars**: Real-time progress indication for long-running operations (currently using spinners).
+- 🔄 **Colored output**: ANSI color codes for different message types (mostly implemented in TUI).
+- 🔄 **Verbose mode**: Detailed logging with `-v` flag.
+- ✅ **Interactive confirmations**: Prompt before destructive operations.
 
 #### Bubbletea approach
 
