@@ -41,7 +41,7 @@ type TUI struct {
 	planSummary string
 }
 
-func NewTUI(dryRun bool) *TUI {
+func NewTUI() *TUI {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -54,7 +54,6 @@ func NewTUI(dryRun bool) *TUI {
 			incoming: make(chan status.Event, 100),
 			confirm:  make(chan bool),
 		},
-		dryRun: dryRun,
 	}
 }
 

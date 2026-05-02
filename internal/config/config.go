@@ -25,7 +25,6 @@ type Config struct {
 	SentenceAudioField string       `json:"sentence_audio_field"`
 	SentenceSourceCol  string       `json:"sentence_source_col"`
 	ForceSync          bool         `json:"-"`
-	DryRun             bool         `json:"-"`
 }
 
 // Validate checks if the local configuration fields are present.

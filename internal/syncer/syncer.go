@@ -91,12 +91,6 @@ func (s *Syncer) Run() error {
 		return fmt.Errorf("failed to build sync plan: %w", err)
 	}
 
-	if s.cfg.DryRun {
-		s.report(status.LogMsg{Text: fmt.Sprintf("Dry run: %d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))})
-		s.report(status.PhaseMsg{Step: status.Done, Label: "Dry run complete"})
-		return nil
-	}
-
 	// Step 4: Confirm sync (skip if nothing to do)
 	if len(syncPlan.NewNotes) == 0 && len(syncPlan.UpdatedNotes) == 0 {
 		s.report(status.LogMsg{Text: "Nothing to sync"})

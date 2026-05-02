@@ -24,14 +24,10 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Fprintf(flag.CommandLine.Output(), "\nExamples:\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  sync                           # Normal sync\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  sync --dry-run                # Preview changes without executing\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  sync --force                  # Force update existing notes\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  sync --skip-validate          # Skip validation checks (faster)\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  sync --dry-run --force        # Preview forced updates\n")
 	}
 
-	force := flag.Bool("force", false, "Force sync of existing notes (updates audio and fields)")
-	dryRun := flag.Bool("dry-run", false, "Preview changes without executing them")
+	force := flag.Bool("force", true, "Force sync of existing notes (updates audio and fields)")
 	skipValidate := flag.Bool("skip-validate", false, "Skip validation checks (deck, model, columns)")
 	flag.Parse()
 
@@ -41,9 +37,8 @@ func main() {
 	}
 
 	cfg.ForceSync = *force
-	cfg.DryRun = *dryRun
 
-	tui := ui.NewTUI(*dryRun)
+	tui := ui.NewTUI()
 	p := tea.NewProgram(tui)
 
 	ankiClient := anki.NewClient()
