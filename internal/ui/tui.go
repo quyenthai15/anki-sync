@@ -21,6 +21,11 @@ var (
 			Foreground(lipgloss.Color("#FF7F87"))
 	logStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#767676"))
+
+	planHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
+	planAddStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	planUpdateStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	planItemStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FAFAFA"))
 )
 
 type TUI struct {
@@ -221,7 +226,7 @@ func (m *TUI) renderMainContent() string {
 
 	case status.Confirming:
 		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Render("  ? Confirm sync? [y/N]") +
-			"\n\n" + indent(m.planSummary, "    ") + "\n\n"
+			"\n\n" + renderPlanSummary(m.planSummary) + "\n\n"
 
 	case status.Executing:
 		return "  " + m.progress.View() + "\n\n"
@@ -249,12 +254,23 @@ func (m *TUI) renderFooter() string {
 	return logStyle.Render("  press q to quit\n")
 }
 
-func indent(s, prefix string) string {
-	lines := strings.Split(s, "\n")
-	for i, line := range lines {
-		lines[i] = prefix + line
+func renderPlanSummary(summary string) string {
+	var out strings.Builder
+	for _, line := range strings.Split(summary, "\n") {
+		switch {
+		case strings.HasPrefix(line, "Adding"):
+			out.WriteString("  " + planAddStyle.Render(line) + "\n")
+		case strings.HasPrefix(line, "Updating"):
+			out.WriteString("  " + planUpdateStyle.Render(line) + "\n")
+		case line == "":
+			out.WriteString("\n")
+		case strings.Contains(line, "···"):
+			out.WriteString(logStyle.Render(line) + "\n")
+		default:
+			out.WriteString(planItemStyle.Render(line) + "\n")
+		}
 	}
-	return strings.Join(lines, "\n")
+	return strings.TrimRight(out.String(), "\n")
 }
 
 func (m *TUI) awaitingConfirm() bool {

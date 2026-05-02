@@ -4,6 +4,8 @@ import (
 	"anki-sync-go/internal/anki"
 	"anki-sync-go/internal/config"
 	"anki-sync-go/internal/sheet"
+	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -28,6 +30,67 @@ type Plan struct {
 
 func NewPlan() Plan {
 	return Plan{}
+}
+
+func sortedFields(fields map[string]string) []string {
+	keys := make([]string, 0, len(fields))
+	for k := range fields {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func (n NoteToAdd) String() string {
+	var lines []string
+	for _, key := range sortedFields(n.Fields) {
+		v := n.Fields[key]
+		if v == "" {
+			continue
+		}
+		if len(v) > 40 {
+			v = v[:40] + "..."
+		}
+		lines = append(lines, fmt.Sprintf("   %s: %s ", key, v))
+	}
+	return strings.Join(lines, "|")
+}
+
+func (n NoteToUpdate) String() string {
+	var lines []string
+	for _, key := range sortedFields(n.Fields) {
+		v := n.Fields[key]
+		if len(v) > 40 {
+			v = v[:40] + "..."
+		}
+		lines = append(lines, fmt.Sprintf("   %s: %s ", key, v))
+	}
+	if len(n.Audio) > 0 {
+		lines = append(lines, fmt.Sprintf("   audio: %d file(s) ", len(n.Audio)))
+	}
+	return strings.Join(lines, "|")
+}
+
+func (p Plan) String() string {
+	var parts []string
+	sep := "   " + strings.Repeat("·", 30)
+	if len(p.NewNotes) > 0 {
+		section := fmt.Sprintf("Adding %d notes:\n", len(p.NewNotes))
+		var notes []string
+		for _, note := range p.NewNotes {
+			notes = append(notes, note.String())
+		}
+		parts = append(parts, section+strings.Join(notes, "\n"+sep+"\n"))
+	}
+	if len(p.UpdatedNotes) > 0 {
+		section := fmt.Sprintf("Updating %d notes:\n", len(p.UpdatedNotes))
+		var notes []string
+		for _, note := range p.UpdatedNotes {
+			notes = append(notes, note.String())
+		}
+		parts = append(parts, section+strings.Join(notes, "\n"+sep+"\n"))
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (p *Plan) AddNewNote(ankiFields map[string]string, audio []anki.AudioInfo) {

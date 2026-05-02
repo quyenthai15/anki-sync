@@ -105,7 +105,7 @@ func (s *Syncer) Run() error {
 	}
 
 	if s.reporter != nil {
-		summary := fmt.Sprintf("%d new, %d updates", len(syncPlan.NewNotes), len(syncPlan.UpdatedNotes))
+		summary := syncPlan.String()
 		if !s.reporter.Confirm(summary) {
 			s.report(status.LogMsg{Text: "Sync cancelled by user"})
 			s.report(status.PhaseMsg{Step: status.Done, Label: "Cancelled"})
