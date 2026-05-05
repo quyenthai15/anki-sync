@@ -83,6 +83,14 @@ func (c Config) ValidateWithAnki(anki AnkiProvider) error {
 			return fmt.Errorf("field '%s' not found in Anki model '%s'", ankiField, c.AnkiModel)
 		}
 	}
+
+	// Check Audio Fields
+	if !slices.Contains(modelFields, c.AudioField) {
+		return fmt.Errorf("audio field '%s' not found in Anki model '%s'", c.AudioField, c.AnkiModel)
+	}
+	if !slices.Contains(modelFields, c.SentenceAudioField) {
+		return fmt.Errorf("sentence audio field '%s' not found in Anki model '%s'", c.SentenceAudioField, c.AnkiModel)
+	}
 	return nil
 }
 
