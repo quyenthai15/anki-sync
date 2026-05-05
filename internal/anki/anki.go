@@ -107,9 +107,7 @@ func invoke[R any](c *Client, action string, params map[string]any) (R, error) {
 	}
 
 	if response.Error != nil {
-		if errStr, ok := response.Error.(string); ok && errStr != "" {
-			return result, fmt.Errorf("anki error: %s", errStr)
-		}
+		return result, fmt.Errorf("anki error: %v", response.Error)
 	}
 
 	return response.Result, nil
@@ -210,13 +208,44 @@ func NormalizeAnkiNotes(rawNotes []RawNote, keyField string) (notesByWord NoteMa
 	return notesByWord, nil
 }
 
-func (c *Client) AddNotes(notes []NoteToAdd) ([]int, error) {
+func (c *Client) AddNotes(notes []NoteToAdd) error {
 	params := map[string]any{"notes": notes}
-	return invoke[[]int](c, "addNotes", params)
+	results, err := invoke[[]*int](c, "addNotes", params)
+	if err != nil {
+		return err
+	}
+
+	var failed int
+	for _, id := range results {
+		if id == nil {
+			failed++
+		}
+	}
+
+	if failed > 0 {
+		return fmt.Errorf("failed to add %d/%d notes", failed, len(notes))
+	}
+
+	return nil
 }
 
 func (c *Client) UpdateNotes(actions []any) error {
 	params := map[string]any{"actions": actions}
-	_, err := invoke[[]any](c, "multi", params) // TODO: handle multi response
-	return err
+	results, err := invoke[[]Response[any]](c, "multi", params)
+	if err != nil {
+		return err
+	}
+
+	var errors []string
+	for i, res := range results {
+		if res.Error != nil {
+			errors = append(errors, fmt.Sprintf("action %d: %v", i, res.Error))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("multi-action errors: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
 }

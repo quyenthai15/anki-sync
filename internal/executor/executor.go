@@ -19,7 +19,7 @@ type Executor struct {
 }
 
 type AnkiClient interface {
-	AddNotes(notes []anki.NoteToAdd) ([]int, error)
+	AddNotes(notes []anki.NoteToAdd) error
 	UpdateNotes(notes []any) error
 }
 
@@ -39,27 +39,18 @@ func (e *Executor) report(msg status.Event) {
 
 // Execute performs the actual updates and additions to Anki
 func (e *Executor) Execute(p plan.Plan) error {
-	total := len(p.NewNotes) + len(p.UpdatedNotes)
-	current := 0
-
 	if len(p.NewNotes) > 0 {
-		e.report(status.ProgressMsg{Current: current, Total: total})
 		e.report(status.LogMsg{Text: "Adding notes"})
 		if err := e.ExecuteAdditions(p.NewNotes); err != nil {
 			return fmt.Errorf("failed to execute additions: %w", err)
 		}
-		current += len(p.NewNotes)
-		e.report(status.ProgressMsg{Current: current, Total: total})
 	}
 
 	if len(p.UpdatedNotes) > 0 {
-		e.report(status.ProgressMsg{Current: current, Total: total})
 		e.report(status.LogMsg{Text: "Updating notes"})
 		if err := e.ExecuteUpdates(p.UpdatedNotes); err != nil {
 			return fmt.Errorf("failed to execute updates: %w", err)
 		}
-		current += len(p.UpdatedNotes)
-		e.report(status.ProgressMsg{Current: current, Total: total})
 	}
 
 	return nil
@@ -69,16 +60,20 @@ func (e *Executor) ExecuteAdditions(notes []plan.NoteToAdd) error {
 	if len(notes) == 0 {
 		return nil
 	}
+	total := len(notes) + 1
 	ankiNotes := make([]anki.NoteToAdd, 0, len(notes))
-	for _, note := range notes {
+	for idx, note := range notes {
 		ankiNote, err := e.buildNoteToAdd(note)
+		e.report(status.ProgressMsg{Current: idx, Total: total})
 		if err != nil {
 			return fmt.Errorf("fail to build new note %w", err)
 		}
 		ankiNotes = append(ankiNotes, ankiNote)
 	}
-	if _, err := e.ankiClient.AddNotes(ankiNotes); err != nil {
-		return fmt.Errorf("fail to add new notes to anki %w", err)
+
+	e.report(status.ProgressMsg{Current: total, Total: total})
+	if len(ankiNotes) > 0 {
+		return e.ankiClient.AddNotes(ankiNotes)
 	}
 	return nil
 }
@@ -87,19 +82,22 @@ func (e *Executor) ExecuteUpdates(notes []plan.NoteToUpdate) error {
 	if len(notes) == 0 {
 		return nil
 	}
-	var actions []any
-	for _, note := range notes {
+	total := len(notes) + 1 // buffer for anki request
+	actions := make([]any, 0, len(notes))
+	for idx, note := range notes {
 		// Update note fields and audio
 		// To add audio to an existing note, we can use 'updateNoteFields'
 		// if the audio tag is already in the field value. [sound:ja_word_tts_ほんとに.mp3]
 		// Ensure fields is not nil for AnkiConnect
+		e.report(status.ProgressMsg{Current: idx, Total: total})
 		fields := note.Fields
 		if fields == nil {
 			fields = make(map[string]string)
 		}
 
 		action := map[string]any{
-			"action": "updateNoteFields",
+			"action":  "updateNoteFields",
+			"version": 6,
 			"params": map[string]any{
 				"note": map[string]any{
 					"id":     note.NoteID,
@@ -111,6 +109,7 @@ func (e *Executor) ExecuteUpdates(notes []plan.NoteToUpdate) error {
 		actions = append(actions, action)
 	}
 
+	e.report(status.ProgressMsg{Current: total, Total: total})
 	if len(actions) > 0 {
 		return e.ankiClient.UpdateNotes(actions)
 	}

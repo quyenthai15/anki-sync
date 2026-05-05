@@ -37,7 +37,6 @@ type TUI struct {
 	logs        []string
 	err         error
 	quitting    bool
-	dryRun      bool
 	planSummary string
 }
 
@@ -255,7 +254,7 @@ func (m *TUI) renderFooter() string {
 
 func renderPlanSummary(summary string) string {
 	var out strings.Builder
-	for _, line := range strings.Split(summary, "\n") {
+	for line := range strings.SplitSeq(summary, "\n") {
 		switch {
 		case strings.HasPrefix(line, "Adding"):
 			out.WriteString("  " + planAddStyle.Render(line) + "\n")
