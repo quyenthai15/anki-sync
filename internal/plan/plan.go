@@ -173,13 +173,23 @@ func (b *PlanBuilder) processUpdateNote(word, sentence string, fields map[string
 	// Handle Sentence Audio - if missing or sentence changed
 	sentenceAnkiField := b.config.Mapping[b.config.SentenceSourceCol]
 	sentenceChanged := existing.Fields[sentenceAnkiField] != sentence
-	if sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged) {
+	regenerateSentenceAudio := sentence != "" && (!hasSound(existing.Fields[b.config.SentenceAudioField]) || sentenceChanged)
+	if regenerateSentenceAudio {
 		if audio, ok := b.createSentenceAudio(sentence); ok {
 			audios = append(audios, audio)
 		}
 	}
 
 	diff := getDiff(fields, existing.Fields)
+
+	// Clear old sentence audio when regenerating due to sentence change
+	if regenerateSentenceAudio && sentenceChanged && b.config.SentenceAudioField != "" {
+		if diff == nil {
+			diff = make(map[string]string)
+		}
+		diff[b.config.SentenceAudioField] = ""
+	}
+
 	if diff != nil || len(audios) > 0 {
 		b.plan.AddUpdatedNote(existing.NoteID, diff, audios)
 	}
