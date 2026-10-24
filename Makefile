@@ -1,43 +1,51 @@
-.PHONY: build dist clean
+.PHONY: help build dist dist-mac dist-win check profiles dry-run import clean
 
-BINARY_NAME=sync
-DIST_DIR=../anki-sync/dist/go
+BINARY_NAME=anki-sync
+DIST_DIR=./dist
 SRC_DIR=./cmd/sync
+DRAFT?=.anki-draft.yaml
 
-# Default build for current platform
+help:
+	@echo "Build:"
+	@echo "  make build              Build ./anki-sync for this machine"
+	@echo "  make dist               Build macOS (Apple Silicon) and Windows (64-bit) into dist/"
+	@echo ""
+	@echo "Usage (uses DRAFT=<file>, default $(DRAFT)):"
+	@echo "  make check              Check AnkiConnect is running"
+	@echo "  make profiles           List language profiles"
+	@echo "  make dry-run            Validate the draft without writing to Anki"
+	@echo "  make import             Import the draft into Anki"
+	@echo ""
+	@echo "Other:"
+	@echo "  make clean              Remove built binaries and dist/"
+
 build:
 	go build -o $(BINARY_NAME) $(SRC_DIR)
 
-# Colors and Emojis
-BLUE    = \033[34m
-GREEN   = \033[32m
-CYAN    = \033[36m
-BOLD    = \033[1m
-RESET   = \033[0m
+dist: dist-mac dist-win
+	@echo "Binaries are in $(DIST_DIR)/"
 
-# Distribution builds for Win/Mac
-dist:
-	@rm -rf $(DIST_DIR)
-	@echo "Removed old files"
-	@mkdir -p $(DIST_DIR)
-	@echo "$(BLUE)📦 Starting distribution builds...$(RESET)"
-
-# @echo "$(BLUE)  🔨 Building for macOS (Intel)...$(RESET)"
-# @mkdir -p $(DIST_DIR)/mac-intel
-# @GOOS=darwin GOARCH=amd64 go build -o $(DIST_DIR)/mac-intel/$(BINARY_NAME) $(SRC_DIR)
-
-	@echo "$(BLUE)  🔨 Building for macOS (Apple Silicon)...$(RESET)"
+dist-mac:
 	@mkdir -p $(DIST_DIR)/mac-arm
-	@GOOS=darwin GOARCH=arm64 go build -o $(DIST_DIR)/mac-arm/$(BINARY_NAME) $(SRC_DIR)
+	GOOS=darwin GOARCH=arm64 go build -o $(DIST_DIR)/mac-arm/$(BINARY_NAME) $(SRC_DIR)
 
-	@echo "$(BLUE)  🔨 Building for Windows (64-bit)...$(RESET)"
+dist-win:
 	@mkdir -p $(DIST_DIR)/win64
-	@GOOS=windows GOARCH=amd64 go build -o $(DIST_DIR)/win64/$(BINARY_NAME).exe $(SRC_DIR)
+	GOOS=windows GOARCH=amd64 go build -o $(DIST_DIR)/win64/$(BINARY_NAME).exe $(SRC_DIR)
 
-	@echo "\n$(GREEN)$(BOLD)✅ All builds completed successfully!$(RESET)"
-	@echo "$(GREEN)📍 Binaries are located in: $(DIST_DIR)$(RESET)"
+check: build
+	./$(BINARY_NAME) check
+
+profiles: build
+	./$(BINARY_NAME) profiles
+
+dry-run: build
+	./$(BINARY_NAME) import --dry-run $(DRAFT)
+
+import: build
+	./$(BINARY_NAME) import $(DRAFT)
 
 clean:
-	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_NAME) $(BINARY_NAME).exe sync
 	rm -rf $(DIST_DIR)
-	@echo "Cleanup completed"
+	@echo "Cleaned"

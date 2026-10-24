@@ -35,8 +35,10 @@
         "Reading": "IPA pronunciation (e.g. '/livʁ/')",
         "Meaning": "English/Vietnamese meaning",
         "Type": "Part of speech and gender (e.g. 'Nom (m)', 'Verbe (1er gr)')",
+        "Conjugation": "Verbs only: present forms and auxiliary (e.g. 'je flâne, tu flânes, … (avoir)'), else empty",
         "Sentence_FR": "Simple example sentence in French",
-        "Sentence_EN": "English translation of the sentence"
+        "Sentence_EN": "English translation of the sentence",
+        "Note": "Usage, register, false friends, or mnemonic; keep short, else empty"
       },
       "audio": {
         "Audio": "Expression",

@@ -10,144 +10,84 @@ description: >-
 
 # Anki Vocabulary Sync Skill
 
-This skill coordinates creating foreign language vocabulary flashcards in local Anki decks with automatic linguistic generation (IPA/readings, pitch accent, example sentences, translations) and audio synthesis.
+Creates foreign-language flashcards through a **Draft-and-Review** workflow: draft cards into `.anki-draft.yaml`, validate, show the user, then import on explicit confirmation.
 
-It enforces a **Draft-and-Review** workflow: the agent generates cards into an editable draft file (`.anki-draft.yaml`), allows the user to inspect/edit it, and imports to Anki upon confirmation.
-
----
-
-## 1. When to Activate (Strict Triggers)
-
-### DO Activate When:
-
-- User explicitly asks to add words to Anki (e.g., _"Add たまご to my Japanese deck"_, _"Save flâner into Anki"_).
-- User asks to create/generate flashcards or notes for words (e.g., _"Make flashcards for these 5 French verbs"_).
-- User asks to review or import pending draft cards into Anki (e.g., _"Import the cards"_, _"Sync to Anki"_).
-
-### DO NOT Activate When:
-
-- The user is only asking for a translation or definition (e.g., _"What does 'flâner' mean?"_).
-- The user is asking for general grammar assistance or conjugation help without asking for flashcards.
-- The user is practicing conversation or writing exercises.
+Reference docs (load when needed):
+- [references/cards.md](references/cards.md): field generation rules, pronunciation formats, examples per language.
+- [references/cli.md](references/cli.md): `anki-sync` commands, draft format, error handling.
 
 ---
 
-## 2. Dynamic Profile & Card Model Architecture
+## 1. When to Activate
 
-**Always inspect `profiles.json` first.** It defines the deck, note model, pronunciation guide, and exact card fields for each language:
+**Activate when the user:**
+- Asks to add words or notes to Anki (e.g. _"Add たまご to my Japanese deck"_, _"Save flâner into Anki"_).
+- Asks to create flashcards for words (e.g. _"Make flashcards for these 5 French verbs"_).
+- Asks to import or sync pending draft cards (e.g. _"Import the cards"_, _"Sync to Anki"_).
 
-```json
-{
-  "deck": "Japanese::N5",
-  "model": "JP_sheet",
-  "target_lang": "ja",
-  "translation_lang": "vn",
-  "level": "N5-N4",
-  "pronunciation": "Standard Kana with Tokyo pitch accent type in brackets [0], [1]...",
-  "rules": "...",
-  "fields": { ... },
-  "audio": { ... }
-}
-```
-
-### Key Principles:
-
-1. **Model-Specific Fields (No Useless Fields)**:
-   - Each language model in Anki has different fields.
-   - For example, Japanese has a `Kanji` field, while French does **not**. French has gender articles and IPA.
-   - **Rule**: Only generate the keys defined in `profile.fields`. Never invent fields or carry over irrelevant fields (e.g. no `Kanji` in French).
-2. **Pronunciation Guides**:
-   - **French**: Always generate **International Phonetic Alphabet (IPA)** enclosed in slashes (e.g. `/livʁ/`, `/flɑ.ne/`).
-   - **Japanese**: Generate Kana with Tokyo pitch accent type in brackets (e.g. `だいがく [0]`, `たまご [2]`), strictly obeying the mora count constraint.
-   - **Mandarin (if configured)**: Generate standard Pinyin with tone marks.
-3. **Sentence Convention**:
-   - Target sentence field: `Sentence_<TARGET_LANG>` (e.g., `Sentence_JP`, `Sentence_FR`).
-   - Translation sentence field: `Sentence_<TRANSLATION_LANG>` (e.g., `Sentence_VN`).
-4. **Audio Mapping**:
-   - Defined under `profile.audio` mapping: `"<AnkiAudioField>": "<SourceTextField>"`.
-   - e.g. `"Audio": "Expression"`, `"SentenceAudio": "Sentence_FR"`.
+**Do not activate for:**
+- Translations or definitions with no request to save them (e.g. _"What does 'flâner' mean?"_).
+- Grammar or conjugation help without a flashcard request.
+- Conversation or writing practice.
 
 ---
 
-## 3. The 4-Step Workflow
+## 2. Workflow
 
 ```mermaid
 flowchart TD
-    A[1. User: 'Add word X to Anki'] --> B[2. Read profiles.json for model fields & rules]
-    B --> C[3. Agent generates card matching model fields]
-    C --> D[4. Write to .anki-draft.yaml & show preview]
-    D --> E{5. User Review}
-    E -- "User edits file or requests changes" --> D
-    E -- "User confirms / 'import'" --> F[6. Run: anki-sync import .anki-draft.yaml]
+    A[1. Resolve profile] --> B[2. Generate fields per profile]
+    B --> C[3. Write .anki-draft.yaml]
+    C --> D[4. anki-sync import --dry-run]
+    D -- error --> E[Report error, stop]
+    D -- ok --> F[5. Show preview, link draft]
+    F --> G{6. User}
+    G -- requests changes --> C
+    G -- "import" --> H[7. anki-sync import]
+    H -- error --> E
+    H -- ok --> I[8. Report result]
 ```
 
 ### Step 1: Resolve Profile
+- Read the profile list with `anki-sync profiles`. Do not open profile files directly.
+- Match the requested language to a profile key (e.g. `japanese`, `french`).
+- If the match is ambiguous or missing, ask the user, listing the available profiles.
 
-Match the requested language/deck to a profile in `profiles.json` (e.g. `japanese`, `french`). If ambiguous, ask the user or list available profiles.
+### Step 2: Generate Fields
+- Generate only the keys in `profile.fields`. Never add fields from another language.
+- Apply `profile.level`, `profile.pronunciation`, and `profile.rules`.
+- Follow the rules in [references/cards.md](references/cards.md).
 
-### Step 2: Generate Card Fields
+### Step 3: Write Draft
+- Write `.anki-draft.yaml` using the format in [references/cli.md](references/cli.md).
+- `profile` must match a profile key. `cards` must be a non-empty list.
 
-Strictly populate the fields specified in `profile.fields`, applying `profile.level`, `profile.pronunciation`, and `profile.rules`.
+### Step 4: Validate
+- Run `anki-sync import --dry-run .anki-draft.yaml` before showing the preview.
+- If it fails, fix only the invalid fields the error names. If you can't fix it, report the error and stop.
 
-#### Japanese Example:
+### Step 5: Preview
+Show a short preview table in chat and link the draft:
 
-- `Expression`: `たまご`
-- `Reading`: `たまご [2]` _(Tokyo pitch accent)_
-- `Meaning`: `trứng`
-- `Kanji`: `卵`
-- `Type`: `Noun`
-- `Sentence_JP`: `あさごはんに たまごを たべます。` _(N5-N4 level, simple kanji)_
-- `Sentence_VN`: `Tôi ăn trứng vào bữa sáng.`
+> _"I've drafted the note(s) in [`.anki-draft.yaml`](.anki-draft.yaml). Edit any field or ask me to adjust sentences. When ready, say **import** to add them to Anki."_
 
-#### French Example:
+### Step 6: Review
+- If the user requests changes, edit `.anki-draft.yaml`, re-run the dry run (Step 4), and show the updated preview.
+- Import only when the user explicitly says so (e.g. "import", "sync it"). Words like "ok" or "looks good" count only as a reply to a preview, not as a standalone instruction to import.
 
-- `Expression`: `le livre` _(includes article for nouns)_
-- `Reading`: `/livʁ/` _(IPA)_
-- `Meaning`: `cuốn sách`
-- `Type`: `Nom (m)`
-- `Sentence_FR`: `Je lis un livre intéressant ce soir.` _(A0-A1 level)_
-- `Sentence_VN`: `Tối nay tôi đọc một cuốn sách thú vị.`
-  _(Notice: No Kanji or non-existent fields!)_
+### Step 7: Import
+Run `anki-sync import .anki-draft.yaml`.
 
----
-
-### Step 3: Write Draft (`.anki-draft.yaml`)
-
-Write the structured cards into `.anki-draft.yaml`:
-
-```yaml
-profile: french
-cards:
-  - Expression: le livre
-    Reading: /livʁ/
-    Meaning: cuốn sách
-    Type: Nom (m)
-    Sentence_FR: Je lis un livre intéressant ce soir.
-    Sentence_VN: Tối nay tôi đọc một cuốn sách thú vị.
-```
-
-Present a preview table in chat and link to [`.anki-draft.yaml`](file:///.anki-draft.yaml):
-
-> _"I've drafted the note(s) in [`.anki-draft.yaml`](file:///.anki-draft.yaml). Feel free to tweak any field in your editor or ask me to adjust sentences. When ready, say **import** to add to Anki."_
+### Step 8: Report
+Report cards added, audio generated, and the target deck, using the CLI output.
 
 ---
 
-### Step 4: Review & Import
+## 3. Error Handling (Strict)
 
-1. **If user wants changes**:
-   Edit `.anki-draft.yaml` directly using file editing tools and confirm with the user.
-2. **If user confirms** (_"looks good"_, _"import"_, _"ok"_):
-   Run the import command:
-   ```bash
-   anki-sync import .anki-draft.yaml
-   ```
-3. Report the result (cards added, audio generated, target deck).
-
----
-
-## 4. CLI Helper Reference
-
-- `anki-sync check`: Verify AnkiConnect is running (`http://localhost:8765`).
-- `anki-sync profiles`: List all configured profiles from `profiles.json`.
-- `anki-sync import <draft.yaml>`: Import draft into Anki with auto-generated TTS audio.
-- `anki-sync import --dry-run <draft.yaml>`: Validate draft and preview payload without writing to Anki.
+- **Use `anki-sync` as the only interface to Anki.** Never call AnkiConnect directly (no `curl` to `localhost:8765`, no raw JSON-RPC, no touching Anki's collection or media files).
+- **On any `anki-sync` error, stop and report it verbatim.** Do not retry with other commands or workarounds.
+- Retry only when the user asks, or after the user confirms the cause is fixed.
+- Edit the draft to fix an import error only when the error names a specific invalid field. Tell the user what changed before re-running.
+- If `anki-sync check` fails, tell the user to open Anki with the AnkiConnect add-on enabled, then stop.
+- If the import reports duplicate notes, list them and ask the user what to do. Do not delete or overwrite existing notes.

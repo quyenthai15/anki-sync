@@ -47,3 +47,8 @@ temp/
 
 # Config files
 config.json
+.profiles.json
+
+# Built binaries
+/anki-sync
+dist/

@@ -1,3 +1,5 @@
+// This package implements anki connect client
+// Ref: https://git.sr.ht/~foosoft/anki-connect/tree/master/API_LEGACY.md
 package anki
 
 import (
@@ -5,12 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 )
 
 const (
-	AnkiConnectURL = "http://localhost:8765"
+	AnkiConnectURL = "http://127.0.0.1:8765"
 )
 
 // Request represents an Anki Connect API request
@@ -117,6 +120,11 @@ func NewClient() *Client {
 	return &Client{
 		url: AnkiConnectURL,
 	}
+}
+
+func (c *Client) Check() error {
+	_, err := net.Dial("tcp", ":8765") // TODO: don't hard code
+	return err
 }
 
 func (c *Client) GetModels() ([]string, error) {
