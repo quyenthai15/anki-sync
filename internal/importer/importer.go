@@ -178,5 +178,11 @@ func Import(draftPath string, dryRun bool) (*ImportResult, error) {
 		return nil, fmt.Errorf("failed to add notes to Anki: %w", err)
 	}
 
+	// Remove draft file
+	if err := os.Remove(draftPath); err != nil {
+		return nil, fmt.Errorf("failed to remove anki-draft file: %w", err)
+	}
+	fmt.Println("✔ Removed draft ", draftPath)
+
 	return result, nil
 }
