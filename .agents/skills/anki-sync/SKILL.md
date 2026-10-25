@@ -12,6 +12,11 @@ description: >-
 
 Creates foreign-language flashcards through a **Draft-and-Review** workflow: draft cards into `.anki-draft.yaml`, validate, show the user, then import on explicit confirmation.
 
+Before any `anki-sync` command, resolve the binary (see [references/cli.md](references/cli.md#locating-the-binary)):
+1. `anki-sync` on PATH, if present.
+2. Otherwise `<skill-dir>/bin/<platform>/anki-sync` (`anki-sync.exe` on Windows), where `<platform>` is `darwin-arm64` or `windows-amd64`.
+3. If neither works, report that the binary is missing and stop. Do not build it or download anything.
+
 Reference docs (load when needed):
 - [references/cards.md](references/cards.md): field generation rules, pronunciation formats, examples per language.
 - [references/cli.md](references/cli.md): `anki-sync` commands, draft format, error handling.

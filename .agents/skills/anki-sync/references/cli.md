@@ -1,5 +1,17 @@
 # CLI Reference
 
+## Locating the Binary
+
+Binaries ship inside the skill at `<skill-dir>/bin/`:
+
+| Platform | Detect | Path |
+| --- | --- | --- |
+| macOS, Apple Silicon | `uname -sm` prints `Darwin arm64` | `bin/darwin-arm64/anki-sync` |
+| Windows 64-bit | `echo %PROCESSOR_ARCHITECTURE%` prints `AMD64` | `bin\windows-amd64\anki-sync.exe` |
+| Anything else (e.g. Intel Mac, Linux) | | No binary. Report it and stop. |
+
+Use the PATH binary first. On macOS, if the file is not executable, run `chmod +x`. If macOS blocks it as quarantined, tell the user to run `xattr -d com.apple.quarantine <path>`; do not run it with other flags.
+
 ## Commands
 
 | Command | Purpose |
