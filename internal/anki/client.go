@@ -140,19 +140,16 @@ func (c *Client) GetModelFields(modelName string) ([]string, error) {
 	return invoke[[]string](c, "modelFieldNames", params)
 }
 
-func (c *Client) GetNotes(deckName string) ([]int, error) {
-	params := map[string]any{"query": fmt.Sprintf("deck:%s", deckName)}
+func (c *Client) FindNotes(query string) ([]int, error) {
+	params := map[string]any{"query": query}
 	return invoke[[]int](c, "findNotes", params)
 }
 
-func (c *Client) GetNotesInfo(noteIds []int) ([]RawNote, error) {
+func (c *Client) getNotesFromIds(noteIds []int) ([]RawNote, error) {
 	params := map[string]any{"notes": noteIds}
 	infos, err := invoke[[]RawNote](c, "notesInfo", params)
 	if err != nil {
 		return nil, err
-	}
-	if len(infos) == 0 {
-		return nil, fmt.Errorf("no notes found: %d", len(noteIds))
 	}
 	return infos, nil
 }
@@ -175,13 +172,13 @@ func GetFieldValue(fields map[string]RawFieldValue, fieldName string) (string, e
 	return field.StringValue(), nil
 }
 
-func (c *Client) GetNotesFromDeck(deckName string) ([]RawNote, error) {
-	notes, err := c.GetNotes(deckName)
+func (c *Client) QueryNotes(query string) ([]RawNote, error) {
+	noteIds, err := c.FindNotes(query)
 	if err != nil {
 		return nil, err
 	}
 
-	notesInfo, err := c.GetNotesInfo(notes)
+	notesInfo, err := c.getNotesFromIds(noteIds)
 	if err != nil {
 		return nil, err
 	}

@@ -58,6 +58,8 @@ flowchart TD
 - Match the requested language to a profile key (e.g. `japanese`, `french`).
 - If the match is ambiguous or missing, ask the user, listing the available profiles.
 
+Optional: run `anki-sync search --profile <profile> <words...>` to check whether the words already exist in the deck. If they do, tell the user and ask whether to continue before drafting duplicates.
+
 ### Step 2: Generate Fields
 - Generate only the keys in `profile.fields`. Never add fields from another language.
 - Apply `profile.level`, `profile.pronunciation`, and `profile.rules`.

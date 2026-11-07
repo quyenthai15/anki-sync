@@ -59,10 +59,39 @@ Expected output: `AnkiConnect is running on localhost:8765`.
 | ------------------------------------ | --------------------------------------------------------- |
 | `anki-sync check`                    | Confirms AnkiConnect is reachable                         |
 | `anki-sync profiles`                 | Lists the configured languages and their decks            |
+| `anki-sync search --deck <deck> <words...>` | Searches a deck for notes matching each word       |
 | `anki-sync import --dry-run <draft>` | Validates a draft and previews the notes (writes nothing) |
 | `anki-sync import <draft>`           | Adds the notes to Anki                                    |
 
 `<draft>` defaults to `.anki-draft.yaml`. The `-n` flag is a short alias for `--dry-run`.
+
+### Searching existing notes
+
+Check whether words are already in a deck before drafting. Use exactly one of `--deck` or `--profile`; `--profile` looks up the deck from `.profiles.json`.
+
+```
+anki-sync search --profile french "le livre" flâner
+anki-sync search --deck "Japanese::N5" 卵 たまご
+```
+
+Each word is checked independently and reports whether it was found, plus the matching note IDs:
+
+```
+Searching French::A1...
+
+✔ le livre — note #1712345678901
+✘ flâner — not found
+
+1/2 words found in French::A1.
+```
+
+Each argument becomes part of an Anki search query sent directly to AnkiConnect. Plain terms are quoted as exact phrases and match across all fields. Terms containing `:` are passed through as Anki operators, so you can target a field if you know its name:
+
+```
+anki-sync search --deck "French::A1" 'Expression:"le livre"' Meaning:book
+```
+
+Results can still include partial or token matches depending on the query. Up to 10 note IDs are shown per word; additional matches are summarized as `+N more`. A "not found" word exits `0`; only command or AnkiConnect errors exit `1`.
 
 ### Draft format
 
