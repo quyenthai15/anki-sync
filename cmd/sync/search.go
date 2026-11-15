@@ -20,12 +20,19 @@ func handleSearch(args []string) {
 	searchFlags := flag.NewFlagSet("search", flag.ExitOnError)
 	deck := searchFlags.String("deck", "", "Deck to search")
 	profile := searchFlags.String("profile", "", "Profile whose deck to search")
+	field := searchFlags.String("field", "", "Specific field to search")
 	_ = searchFlags.Parse(args)
 
 	words := searchFlags.Args()
 	if len(words) == 0 {
 		fmt.Fprintln(os.Stderr, "✘ Search needs at least one word")
 		os.Exit(1)
+	}
+
+	if *field != "" {
+		for i, w := range words {
+			words[i] = fmt.Sprintf("%s:%s", *field, w)
+		}
 	}
 
 	deckName, err := resolveDeck(*deck, *profile)
