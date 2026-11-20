@@ -59,7 +59,7 @@ Expected output: `AnkiConnect is running on localhost:8765`.
 | ------------------------------------ | --------------------------------------------------------- |
 | `anki-sync check`                    | Confirms AnkiConnect is reachable                         |
 | `anki-sync profiles`                 | Lists the configured languages and their decks            |
-| `anki-sync search --deck <deck> <words...>` | Searches a deck for notes matching each word       |
+| `anki-sync search --deck <deck> [--field <field>] <words...>` | Searches a deck for notes matching each word |
 | `anki-sync import --dry-run <draft>` | Validates a draft and previews the notes (writes nothing) |
 | `anki-sync import <draft>`           | Adds the notes to Anki                                    |
 
@@ -85,11 +85,19 @@ Searching French::A1...
 1/2 words found in French::A1.
 ```
 
-Each argument becomes part of an Anki search query sent directly to AnkiConnect. Plain terms are quoted as exact phrases and match across all fields. Terms containing `:` are passed through as Anki operators, so you can target a field if you know its name:
+Each argument becomes part of an Anki search query sent directly to AnkiConnect. Plain terms are quoted as exact phrases and match across all fields. Terms containing `:` are passed through as Anki operators, so you can target a field per word:
 
 ```
 anki-sync search --deck "French::A1" 'Expression:"le livre"' Meaning:book
 ```
+
+Use `--field <field>` to search one field for every word in the command instead:
+
+```
+anki-sync search --profile french --field Expression "le livre" flâner
+```
+
+The field name must match the note type's field (for example `Expression`, `Reading`, or `Meaning` from your profile). Put flags before the words. Without `--field`, plain terms search all fields.
 
 Results can still include partial or token matches depending on the query. Up to 10 note IDs are shown per word; additional matches are summarized as `+N more`. A "not found" word exits `0`; only command or AnkiConnect errors exit `1`.
 

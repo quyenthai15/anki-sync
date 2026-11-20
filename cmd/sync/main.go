@@ -61,4 +61,5 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "Search options:\n")
 	fmt.Fprintf(w, "  --deck <name>                 Search this deck\n")
 	fmt.Fprintf(w, "  --profile <name>              Search the profile's deck\n")
+	fmt.Fprintf(w, "  --field <name>                Search one field for every word\n")
 }

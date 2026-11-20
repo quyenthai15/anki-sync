@@ -20,6 +20,7 @@ Use the PATH binary first. On macOS, if the file is not executable, run `chmod +
 | `anki-sync profiles` | List configured profiles. Use this instead of reading profile files. |
 | `anki-sync search --deck <deck> <words...>` | Check whether words already exist in a deck. |
 | `anki-sync search --profile <profile> <words...>` | Same, using the profile's deck. |
+| `anki-sync search --deck <deck> --field <field> <words...>` | Search one field for every word. |
 | `anki-sync import --dry-run <draft>` (or `-n`) | Validate the draft and preview notes. Does not write to Anki. |
 | `anki-sync import <draft>` | Add notes to Anki and generate TTS audio. |
 
@@ -30,11 +31,13 @@ Use `search` before drafting when the user asks whether a word is already in a d
 ```bash
 anki-sync search --profile french "le livre" flâner
 anki-sync search --deck "Japanese::N5" 卵 たまご
+anki-sync search --profile french --field Expression "le livre" flâner
 ```
 
 - Pass exactly one of `--deck` or `--profile`; `--profile` resolves the deck from `.profiles.json`.
 - Each word is checked independently. Output lists found note IDs or "not found" per word.
 - Words are passed into an Anki search query sent directly to AnkiConnect. Plain terms are quoted as exact phrases and search all fields; terms containing `:` are passed through, so field queries like `Expression:"le livre"` or `Front:word` work if the field name is known.
+- Add `--field <field>` to search one field for every word instead. The field name must match the note type (e.g. `Expression`, `Reading`, `Meaning`). Put flags before the words.
 - Partial/token matches are possible depending on the query. Up to 10 note IDs are shown per word, then `+N more`.
 - "Not found" is a normal result (exit `0`); command or AnkiConnect errors exit `1`.
 

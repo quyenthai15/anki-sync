@@ -13,11 +13,13 @@ description: >-
 Creates foreign-language flashcards through a **Draft-and-Review** workflow: draft cards into `.anki-draft.yaml`, validate, show the user, then import on explicit confirmation.
 
 Before any `anki-sync` command, resolve the binary (see [references/cli.md](references/cli.md#locating-the-binary)):
+
 1. `anki-sync` on PATH, if present.
 2. Otherwise `<skill-dir>/bin/<platform>/anki-sync` (`anki-sync.exe` on Windows), where `<platform>` is `darwin-arm64` or `windows-amd64`.
 3. If neither works, report that the binary is missing and stop. Do not build it or download anything.
 
 Reference docs (load when needed):
+
 - [references/cards.md](references/cards.md): field generation rules, pronunciation formats, examples per language.
 - [references/cli.md](references/cli.md): `anki-sync` commands, draft format, error handling.
 
@@ -26,11 +28,13 @@ Reference docs (load when needed):
 ## 1. When to Activate
 
 **Activate when the user:**
+
 - Asks to add words or notes to Anki (e.g. _"Add たまご to my Japanese deck"_, _"Save flâner into Anki"_).
 - Asks to create flashcards for words (e.g. _"Make flashcards for these 5 French verbs"_).
 - Asks to import or sync pending draft cards (e.g. _"Import the cards"_, _"Sync to Anki"_).
 
 **Do not activate for:**
+
 - Translations or definitions with no request to save them (e.g. _"What does 'flâner' mean?"_).
 - Grammar or conjugation help without a flashcard request.
 - Conversation or writing practice.
@@ -54,38 +58,46 @@ flowchart TD
 ```
 
 ### Step 1: Resolve Profile
+
 - Read the profile list with `anki-sync profiles`. Do not open profile files directly.
 - Match the requested language to a profile key (e.g. `japanese`, `french`).
 - If the match is ambiguous or missing, ask the user, listing the available profiles.
 
-Optional: run `anki-sync search --profile <profile> <words...>` to check whether the words already exist in the deck. If they do, tell the user and ask whether to continue before drafting duplicates.
+Optional: run `anki-sync search --profile <profile> [--field Expression] <words...>` to check whether the words already exist in the deck. Use `--field` to restrict the check to one field (usually `Expression` or `Word`) and avoid matches from example sentences. If they do, tell the user and ask whether to continue before drafting duplicates.
 
 ### Step 2: Generate Fields
+
 - Generate only the keys in `profile.fields`. Never add fields from another language.
 - Apply `profile.level`, `profile.pronunciation`, and `profile.rules`.
 - Follow the rules in [references/cards.md](references/cards.md).
 
 ### Step 3: Write Draft
+
 - Write `.anki-draft.yaml` using the format in [references/cli.md](references/cli.md).
 - `profile` must match a profile key. `cards` must be a non-empty list.
 
 ### Step 4: Validate
+
 - Run `anki-sync import --dry-run .anki-draft.yaml` before showing the preview.
 - If it fails, fix only the invalid fields the error names. If you can't fix it, report the error and stop.
 
 ### Step 5: Preview
+
 Show a short preview table in chat and link the draft:
 
 > _"I've drafted the note(s) in [`.anki-draft.yaml`](.anki-draft.yaml). Edit any field or ask me to adjust sentences. When ready, say **import** to add them to Anki."_
 
 ### Step 6: Review
+
 - If the user requests changes, edit `.anki-draft.yaml`, re-run the dry run (Step 4), and show the updated preview.
 - Import only when the user explicitly says so (e.g. "import", "sync it"). Words like "ok" or "looks good" count only as a reply to a preview, not as a standalone instruction to import.
 
 ### Step 7: Import
+
 Run `anki-sync import .anki-draft.yaml`.
 
 ### Step 8: Report
+
 Report cards added, audio generated, and the target deck, using the CLI output.
 
 ---

@@ -31,7 +31,7 @@ func handleSearch(args []string) {
 
 	if *field != "" {
 		for i, w := range words {
-			words[i] = fmt.Sprintf("%s:%s", *field, w)
+			words[i] = fmt.Sprintf("%s:%q", *field, w)
 		}
 	}
 
